@@ -19,7 +19,8 @@ enum class EVisualizerShape : uint8
 	Aligned UMETA(DisplayName = "Aligned"),
 	Circle UMETA(DisplayName = "Circle"),
 	HalfCircle UMETA(DisplayName = "Half Circle"),
-	CustomCircle UMETA(DisplayName = "Custom Circle")
+	CustomCircle UMETA(DisplayName = "Custom Circle"),
+	Max UMETA(DisplayName = "Max")
 };
 
 /**
