@@ -57,25 +57,6 @@ void AScoreManager::UpdateHealth(float Health)
 	CurrentHealth = Health;
 }
 
-bool AScoreManager::TakeDamage(float Damage)
-{
-	if (bIsInvincible)
-	{
-		UE_LOG(LogTemp, Log, TEXT("Damage ignored: player is invincible."));
-		return false; // Pas de dégâts appliqués
-	}
-
-	CurrentHealth -= Damage;
-	CurrentHealth = FMath::Clamp(CurrentHealth, 0.0f, MaxHealth);
-
-	// Activer l'invincibilité
-	bIsInvincible = true;
-	GetWorld()->GetTimerManager().SetTimer(InvincibilityTimerHandle, this, &AScoreManager::ResetInvincibility, InvincibilityDuration, false);
-
-	UE_LOG(LogTemp, Log, TEXT("Damage taken: %.2f, Current Health: %.2f"), Damage, CurrentHealth);
-
-	return true; // Dégâts appliqués
-}
 
 void AScoreManager::ResetInvincibility()
 {

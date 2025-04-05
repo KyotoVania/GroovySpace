@@ -1,4 +1,5 @@
-﻿#pragma once
+﻿// AScoreManager.h with fixed TakeDamage to avoid conflict
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -21,7 +22,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combo")
 	void AddScore(int32 Points);
 
-	// Fonction pour gérer le combo
+	// Function for managing combo
 	UFUNCTION(BlueprintCallable, Category = "Combo")
 	void IncrementCombo();
 
@@ -40,9 +41,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Health")
 	void UpdateHealth(float Health);
 
-
-	UFUNCTION(BlueprintCallable, Category = "Health")
-	bool TakeDamage(float Damage);
 private:
 	bool bIsInvincible;
 	float InvincibilityDuration;
