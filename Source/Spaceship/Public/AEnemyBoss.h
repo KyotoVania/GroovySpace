@@ -1,5 +1,4 @@
-﻿// AEnemyBoss.h with fixed TakeDamage to avoid conflict
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
@@ -25,9 +24,12 @@ public:
 	// Collision pour détecter les tirs
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collision")
 	class UBoxComponent* Hitbox;
-	
 
-	// Fonction pour vérifier s'il est détruit
+	// Fonction appelée lorsqu’il subit des dégâts
+	UFUNCTION(BlueprintCallable, Category = "Boss")
+	void TakeDamage(float Damage);
+
+	// Fonction pour vérifier s’il est détruit
 	UFUNCTION(BlueprintCallable, Category = "Boss")
 	bool IsDestroyed() const;
 	// Son joué quand le boss prend des dégâts
