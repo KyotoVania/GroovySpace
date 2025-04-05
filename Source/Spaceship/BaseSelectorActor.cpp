@@ -1,6 +1,8 @@
 ﻿#include "BaseSelectorActor.h"
 #include "Components/TextRenderComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
 
 ABaseSelectorActor::ABaseSelectorActor()
 {
@@ -69,4 +71,61 @@ void ABaseSelectorActor::PlaySelectionConfirmedSound()
 	{
 		UGameplayStatics::PlaySoundAtLocation(this, SelectionConfirmedSound, GetActorLocation());
 	}
+}
+
+void ABaseSelectorActor::SetupInputBindings(APlayerController* PlayerController, UInputComponent* PlayerInputComponent)
+{
+	if (!PlayerController || !PlayerInputComponent)
+	{
+		return;
+	}
+    
+	// Get the local player enhanced input subsystem
+	UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
+	if (!Subsystem)
+	{
+		return;
+	}
+    
+	// Get the enhanced input component
+	UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
+	if (!EnhancedInputComponent)
+	{
+		return;
+	}
+    
+	// Bind the actions
+	if (SelectNextAction)
+	{
+		EnhancedInputComponent->BindAction(SelectNextAction, ETriggerEvent::Triggered, this, &ABaseSelectorActor::OnNextActionTriggered);
+	}
+    
+	if (SelectPreviousAction)
+	{
+		EnhancedInputComponent->BindAction(SelectPreviousAction, ETriggerEvent::Triggered, this, &ABaseSelectorActor::OnPreviousActionTriggered);
+	}
+    
+	if (ConfirmSelectionAction)
+	{
+		EnhancedInputComponent->BindAction(ConfirmSelectionAction, ETriggerEvent::Triggered, this, &ABaseSelectorActor::OnConfirmActionTriggered);
+	}
+}
+
+void ABaseSelectorActor::UnbindInputs()
+{
+	APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	if (!PlayerController)
+	{
+		return;
+	}
+    
+	UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
+	if (!Subsystem)
+	{
+		return;
+	}
+    
+	// Unbind actions if needed
+	// The actions will be unbound automatically when the input component is destroyed,
+	// but we provide this method for explicit unbinding if needed
 }

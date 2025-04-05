@@ -69,7 +69,7 @@ USpaceshipSaveManager* USpaceshipSaveManager::GetSaveManager(UObject* WorldConte
     Instance = Manager;
     
     // Add to root to prevent garbage collection
-    Manager->AddToRoot();
+    //Manager->AddToRoot();
     
     return Manager;
 }
