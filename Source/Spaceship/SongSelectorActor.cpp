@@ -6,10 +6,7 @@
 
 ASongSelectorActor::ASongSelectorActor()
 {
-    // Initialize variables
-    CurrentSongIndex = 0;
-    
-    // Create song title text
+    // Create UI components
     SongTitleText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("SongTitleText"));
     SongTitleText->SetupAttachment(RootComponent);
     SongTitleText->SetRelativeLocation(FVector(0.0f, 0.0f, 70.0f));
@@ -17,7 +14,6 @@ ASongSelectorActor::ASongSelectorActor()
     SongTitleText->SetWorldSize(20.0f);
     SongTitleText->SetTextRenderColor(FColor::White);
     
-    // Create difficulty text
     DifficultyText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("DifficultyText"));
     DifficultyText->SetupAttachment(RootComponent);
     DifficultyText->SetRelativeLocation(FVector(0.0f, 0.0f, 50.0f));
@@ -25,7 +21,6 @@ ASongSelectorActor::ASongSelectorActor()
     DifficultyText->SetWorldSize(15.0f);
     DifficultyText->SetTextRenderColor(FColor::Yellow);
     
-    // Create high score text
     HighScoreText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("HighScoreText"));
     HighScoreText->SetupAttachment(RootComponent);
     HighScoreText->SetRelativeLocation(FVector(0.0f, 0.0f, 30.0f));
@@ -33,7 +28,6 @@ ASongSelectorActor::ASongSelectorActor()
     HighScoreText->SetWorldSize(15.0f);
     HighScoreText->SetTextRenderColor(FColor::Green);
     
-    // Create visualizer shape text
     VisualizerShapeText = CreateDefaultSubobject<UTextRenderComponent>(TEXT("VisualizerShapeText"));
     VisualizerShapeText->SetupAttachment(RootComponent);
     VisualizerShapeText->SetRelativeLocation(FVector(0.0f, 0.0f, 10.0f));
@@ -41,309 +35,243 @@ ASongSelectorActor::ASongSelectorActor()
     VisualizerShapeText->SetWorldSize(15.0f);
     VisualizerShapeText->SetTextRenderColor(FColor::Cyan);
     
-    // Create audio preview component
-    SongPreviewAudio = CreateDefaultSubobject<UAudioComponent>(TEXT("SongPreviewAudio"));
-    SongPreviewAudio->SetupAttachment(RootComponent);
-    SongPreviewAudio->bAutoActivate = false;
+    PreviewComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("PreviewComponent"));
+    PreviewComponent->SetupAttachment(RootComponent);
+    PreviewComponent->bAutoActivate = false;
     
-    // Set title text
     TitleText->SetText(FText::FromString(TEXT("Song Selector")));
     TitleText->SetRelativeLocation(FVector(0.0f, 0.0f, 100.0f));
+    
+    CurrentSongIndex = 0;
+    bIsPreviewPlaying = false;
 }
 
 void ASongSelectorActor::BeginPlay()
 {
     Super::BeginPlay();
     
-    // Ensure we have at least one song
-    if (AvailableSongs.Num() == 0)
+    if (!SongOptions || SongOptions->AvailableSongs.Num() == 0)
     {
-        UE_LOG(LogTemp, Warning, TEXT("No songs defined in SongSelectorActor"));
+        UE_LOG(LogTemp, Warning, TEXT("SongSelectorActor: No songs available in SongOptions"));
+        return;
     }
     
-    // Initialize current song index based on last played song in save
-    if (SaveManager && SaveManager->CurrentSave && SaveManager->CurrentSave->LastSong)
+    if (SaveManager && SaveManager->CurrentSave && !SaveManager->CurrentSave->LastSong.IsNull()) // Vérifie si le SoftPtr est défini
     {
-        // Try to find the last played song in available songs
-        for (int32 i = 0; i < AvailableSongs.Num(); ++i)
+        // Résout le SoftPtr pour obtenir le chemin de l'asset
+        FSoftObjectPath LastSongPath = SaveManager->CurrentSave->LastSong.ToSoftObjectPath();
+
+        bool bFound = false;
+        for (int32 i = 0; i < SongOptions->AvailableSongs.Num(); ++i)
         {
-            if (AvailableSongs[i] == SaveManager->CurrentSave->LastSong)
+            if (SongOptions->AvailableSongs[i].SoundWave) // Vérifie si le SoundWave dans le DataAsset est valide
             {
-                CurrentSongIndex = i;
-                break;
+                // Compare les chemins des assets
+                FSoftObjectPath CurrentSongPath(SongOptions->AvailableSongs[i].SoundWave);
+                if (CurrentSongPath == LastSongPath)
+                {
+                    CurrentSongIndex = i;
+                    bFound = true;
+                    UE_LOG(LogTemp, Log, TEXT("Dernière chanson '%s' trouvée à l'index %d"), *LastSongPath.GetAssetName(), CurrentSongIndex);
+                    break;
+                }
             }
         }
+        if (!bFound)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("Dernière chanson sauvegardée ('%s') non trouvée dans SongOptions. Retour à l'index 0."), *LastSongPath.GetAssetName());
+            CurrentSongIndex = 0; // Reset si non trouvé
+            // Optionnel: Mettre à jour la sauvegarde pour éviter de chercher la prochaine fois
+            // SaveManager->CurrentSave->LastSong = SongOptions->AvailableSongs.IsValidIndex(0) ? SongOptions->AvailableSongs[0].SoundWave : nullptr;
+            // UpdateSaveData();
+        }
     }
-    
-    // Ensure difficulty is within bounds
-    if (SaveManager && SaveManager->CurrentSave)
+    else
     {
-        SaveManager->CurrentSave->Difficulty = FMath::Clamp(SaveManager->CurrentSave->Difficulty, 1, 10);
+        CurrentSongIndex = 0; // Pas de sauvegarde ou LastSong non défini
+    }
+
+    // Set up input bindings
+    APlayerController* PlayerController = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+    if (PlayerController)
+    {
+        SetupInputBindings(PlayerController, PlayerController->InputComponent);
+        UE_LOG(LogTemp, Warning, TEXT("Input bindings set up for songSelector"));
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to get PlayerController in SkinSelectorActor"));
     }
     
-    // Update UI with initial values
     UpdateUI();
 }
 
 void ASongSelectorActor::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
-    // Make sure to stop audio preview when destroying the actor
-    StopSongPreview();
-    
+    StopPreview();
     Super::EndPlay(EndPlayReason);
 }
 
-USoundWave* ASongSelectorActor::GetCurrentSong() const
+FSongMetadata ASongSelectorActor::GetCurrentSong() const
 {
-    if (AvailableSongs.Num() == 0)
+    if (!SongOptions || SongOptions->AvailableSongs.Num() == 0)
     {
-        return nullptr;
+        return FSongMetadata();
     }
     
-    int32 SafeIndex = FMath::Clamp(CurrentSongIndex, 0, AvailableSongs.Num() - 1);
-    return AvailableSongs[SafeIndex];
+    return SongOptions->AvailableSongs[CurrentSongIndex];
 }
 
 int32 ASongSelectorActor::GetCurrentDifficulty() const
 {
-    if (!SaveManager || !SaveManager->CurrentSave)
-    {
-        return 5; // Default difficulty
-    }
-    
-    return SaveManager->CurrentSave->Difficulty;
+    return SaveManager ? SaveManager->CurrentSave->Difficulty : 5;
 }
 
 EVisualizerShape ASongSelectorActor::GetCurrentVisualizerShape() const
 {
-    if (!SaveManager || !SaveManager->CurrentSave)
-    {
-        return EVisualizerShape::Circle; // Default shape
-    }
-    
-    return SaveManager->CurrentSave->VisualizerShape;
-}
-
-int32 ASongSelectorActor::GetCurrentSongHighScore() const
-{
-    USoundWave* CurrentSong = GetCurrentSong();
-    if (!CurrentSong || !SaveManager)
-    {
-        return 0;
-    }
-    
-    return SaveManager->GetBestScore(CurrentSong);
+    return SaveManager ? SaveManager->CurrentSave->VisualizerShape : EVisualizerShape::Circle;
 }
 
 void ASongSelectorActor::NextSong()
 {
-    if (AvailableSongs.Num() == 0)
-    {
-        return;
-    }
+    UE_LOG(LogTemp, Log, TEXT("Next song selected"));
+    if (!SongOptions || SongOptions->AvailableSongs.Num() == 0) return;
     
-    CurrentSongIndex = IncrementIndex(CurrentSongIndex, AvailableSongs.Num());
+    CurrentSongIndex = (CurrentSongIndex + 1) % SongOptions->AvailableSongs.Num();
     
-    // Update save data
     if (SaveManager && SaveManager->CurrentSave)
     {
-        SaveManager->CurrentSave->LastSong = GetCurrentSong();
+        SaveManager->CurrentSave->LastSong = GetCurrentSong().SoundWave;
         UpdateSaveData();
     }
-    
-    // Update UI
+    UE_LOG(LogTemp, Log, TEXT("Current song index: %d"), CurrentSongIndex);
     UpdateUI();
-    
-    // Restart audio preview if active
-    if (SongPreviewAudio && SongPreviewAudio->IsPlaying())
-    {
-        StartSongPreview();
-    }
-    
-    // Broadcast delegate
-    OnSongChanged.Broadcast(GetCurrentSong());
+    if (bIsPreviewPlaying) StartPreview();
+    OnSongChanged.Broadcast(GetCurrentSong().SoundWave);
     PlaySelectionChangedSound();
 }
 
 void ASongSelectorActor::PreviousSong()
 {
-    if (AvailableSongs.Num() == 0)
-    {
-        return;
-    }
+    if (!SongOptions || SongOptions->AvailableSongs.Num() == 0) return;
     
-    CurrentSongIndex = DecrementIndex(CurrentSongIndex, AvailableSongs.Num());
+    CurrentSongIndex = (CurrentSongIndex - 1 + SongOptions->AvailableSongs.Num()) % SongOptions->AvailableSongs.Num();
     
-    // Update save data
     if (SaveManager && SaveManager->CurrentSave)
     {
-        SaveManager->CurrentSave->LastSong = GetCurrentSong();
+        SaveManager->CurrentSave->LastSong = GetCurrentSong().SoundWave;
         UpdateSaveData();
     }
     
-    // Update UI
     UpdateUI();
-    
-    // Restart audio preview if active
-    if (SongPreviewAudio && SongPreviewAudio->IsPlaying())
-    {
-        StartSongPreview();
-    }
-    
-    // Broadcast delegate
-    OnSongChanged.Broadcast(GetCurrentSong());
+    if (bIsPreviewPlaying) StartPreview();
+    OnSongChanged.Broadcast(GetCurrentSong().SoundWave);
     PlaySelectionChangedSound();
 }
 
 void ASongSelectorActor::IncreaseDifficulty()
 {
-    if (!SaveManager || !SaveManager->CurrentSave)
-    {
-        return;
-    }
+    if (!SaveManager || !SaveManager->CurrentSave) return;
     
-    // Increase difficulty (max 10)
-    int32 NewDifficulty = FMath::Clamp(SaveManager->CurrentSave->Difficulty + 1, 1, 10);
-    SaveManager->CurrentSave->Difficulty = NewDifficulty;
+    SaveManager->CurrentSave->Difficulty = FMath::Clamp(SaveManager->CurrentSave->Difficulty + 1, 1, 10);
     UpdateSaveData();
-    
-    // Update UI
     UpdateUI();
-    
-    // Broadcast delegate
-    OnDifficultyChanged.Broadcast(NewDifficulty);
+    OnDifficultyChanged.Broadcast(SaveManager->CurrentSave->Difficulty);
     PlaySelectionChangedSound();
 }
 
 void ASongSelectorActor::DecreaseDifficulty()
 {
-    if (!SaveManager || !SaveManager->CurrentSave)
-    {
-        return;
-    }
+    if (!SaveManager || !SaveManager->CurrentSave) return;
     
-    // Decrease difficulty (min 1)
-    int32 NewDifficulty = FMath::Clamp(SaveManager->CurrentSave->Difficulty - 1, 1, 10);
-    SaveManager->CurrentSave->Difficulty = NewDifficulty;
+    SaveManager->CurrentSave->Difficulty = FMath::Clamp(SaveManager->CurrentSave->Difficulty - 1, 1, 10);
     UpdateSaveData();
-    
-    // Update UI
     UpdateUI();
-    
-    // Broadcast delegate
-    OnDifficultyChanged.Broadcast(NewDifficulty);
+    OnDifficultyChanged.Broadcast(SaveManager->CurrentSave->Difficulty);
     PlaySelectionChangedSound();
 }
 
 void ASongSelectorActor::CycleVisualizerShape()
 {
-    if (!SaveManager || !SaveManager->CurrentSave)
-    {
-        return;
-    }
+    if (!SaveManager || !SaveManager->CurrentSave) return;
     
-    // Cycle through visualizer shapes
-    int32 CurrentShapeIndex = static_cast<int32>(SaveManager->CurrentSave->VisualizerShape);
-    int32 NewShapeIndex = (CurrentShapeIndex + 1) % static_cast<int32>(EVisualizerShape::Max);
+    int32 CurrentShape = static_cast<int32>(SaveManager->CurrentSave->VisualizerShape);
+    int32 NextShape = (CurrentShape + 1) % static_cast<int32>(EVisualizerShape::Max);
+    SaveManager->CurrentSave->VisualizerShape = static_cast<EVisualizerShape>(NextShape);
     
-    SaveManager->CurrentSave->VisualizerShape = static_cast<EVisualizerShape>(NewShapeIndex);
     UpdateSaveData();
-    
-    // Update UI
     UpdateUI();
-    
-    // Broadcast delegate
     OnVisualizerShapeChanged.Broadcast(SaveManager->CurrentSave->VisualizerShape);
     PlaySelectionChangedSound();
 }
 
-void ASongSelectorActor::ConfirmSelection()
-{
-    if (SaveManager)
-    {
-        SaveManager->SaveGame();
-    }
-    
-    PlaySelectionConfirmedSound();
-}
-
-void ASongSelectorActor::StartSongPreview()
-{
-    if (!SongPreviewAudio)
-    {
-        return;
-    }
-    
-    USoundWave* CurrentSong = GetCurrentSong();
-    if (!CurrentSong)
-    {
-        return;
-    }
-    
-    // Stop current playback
-    SongPreviewAudio->Stop();
-    
-    // Update sound and settings
-    SongPreviewAudio->SetSound(CurrentSong);
-    SongPreviewAudio->SetVolumeMultiplier(0.3f); // Lower volume for preview
-    SongPreviewAudio->SetPitchMultiplier(1.0f);
-    
-    // Start playback a bit into the song to skip intros
-    float StartTime = FMath::Min(5.0f, CurrentSong->Duration * 0.2f);
-    SongPreviewAudio->Play(StartTime);
-}
-
-void ASongSelectorActor::StopSongPreview()
-{
-    if (SongPreviewAudio && SongPreviewAudio->IsPlaying())
-    {
-        SongPreviewAudio->Stop();
-    }
-}
-
 void ASongSelectorActor::UpdateUI()
 {
-    USoundWave* CurrentSong = GetCurrentSong();
+    FSongMetadata CurrentSong = GetCurrentSong();
     
-    // Update song title
-    if (SongTitleText && CurrentSong)
+    if (SongTitleText)
     {
-        SongTitleText->SetText(FText::FromString(CurrentSong->GetName()));
-    }
-    else if (SongTitleText)
-    {
-        SongTitleText->SetText(FText::FromString(TEXT("No Songs Available")));
+        FString DisplayName = CurrentSong.DisplayName.IsEmpty() ? 
+            FString::Printf(TEXT("Song %d"), CurrentSongIndex + 1) : CurrentSong.DisplayName;
+        SongTitleText->SetText(FText::FromString(DisplayName));
     }
     
-    // Update difficulty text
     if (DifficultyText)
     {
         int32 Difficulty = GetCurrentDifficulty();
         DifficultyText->SetText(FText::Format(
-            FText::FromString(TEXT("Difficulty: {0}/10")), 
-            FText::AsNumber(Difficulty)
-        ));
+            FText::FromString(TEXT("Difficulty: {0}/10")),
+            FText::AsNumber(Difficulty)));
     }
     
-    // Update high score text
-    if (HighScoreText)
+    if (HighScoreText && SaveManager)
     {
-        int32 HighScore = GetCurrentSongHighScore();
+        int32 HighScore = SaveManager->GetBestScore(CurrentSong.SoundWave);
         HighScoreText->SetText(FText::Format(
-            FText::FromString(TEXT("High Score: {0}")), 
-            FText::AsNumber(HighScore)
-        ));
+            FText::FromString(TEXT("High Score: {0}")),
+            FText::AsNumber(HighScore)));
     }
     
-    // Update visualizer shape text
     if (VisualizerShapeText)
     {
         EVisualizerShape Shape = GetCurrentVisualizerShape();
         VisualizerShapeText->SetText(FText::Format(
-            FText::FromString(TEXT("Visualizer: {0}")), 
-            FText::FromString(GetShapeName(Shape))
-        ));
+            FText::FromString(TEXT("Shape: {0}")),
+            FText::FromString(GetShapeName(Shape))));
     }
+}
+
+void ASongSelectorActor::TogglePreview()
+{
+    if (bIsPreviewPlaying)
+    {
+        StopPreview();
+    }
+    else
+    {
+        StartPreview();
+    }
+}
+
+void ASongSelectorActor::StartPreview()
+{
+    if (!PreviewComponent) return;
+    
+    FSongMetadata CurrentSong = GetCurrentSong();
+    if (!CurrentSong.SoundWave) return;
+    
+    PreviewComponent->SetSound(CurrentSong.SoundWave);
+    PreviewComponent->SetVolumeMultiplier(0.5f);
+    PreviewComponent->Play(CurrentSong.PreviewStartTime);
+    bIsPreviewPlaying = true;
+}
+
+void ASongSelectorActor::StopPreview()
+{
+    if (!PreviewComponent) return;
+    
+    PreviewComponent->Stop();
+    bIsPreviewPlaying = false;
 }
 
 void ASongSelectorActor::UpdateSaveData()
@@ -365,105 +293,122 @@ FString ASongSelectorActor::GetShapeName(EVisualizerShape Shape) const
         case EVisualizerShape::HalfCircle:
             return TEXT("Half Circle");
         case EVisualizerShape::CustomCircle:
-            return TEXT("Custom Circle");
+            return TEXT("Custom");
         default:
             return TEXT("Unknown");
     }
 }
 
-void ASongSelectorActor::SetupInputBindings(APlayerController* PlayerController, UInputComponent* PlayerInputComponent)
-{
-    // First call the base class implementation to set up the basic inputs
-    Super::SetupInputBindings(PlayerController, PlayerInputComponent);
-    
-    // Bind additional input actions
-    UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerInputComponent);
-    if (!EnhancedInputComponent)
-    {
-        return;
-    }
-    
-    if (NextSongAction)
-    {
-        EnhancedInputComponent->BindAction(NextSongAction, ETriggerEvent::Triggered, this, &ASongSelectorActor::OnNextSongActionTriggered);
-    }
-    
-    if (PrevSongAction)
-    {
-        EnhancedInputComponent->BindAction(PrevSongAction, ETriggerEvent::Triggered, this, &ASongSelectorActor::OnPrevSongActionTriggered);
-    }
-    
-    if (IncreaseDifficultyAction)
-    {
-        EnhancedInputComponent->BindAction(IncreaseDifficultyAction, ETriggerEvent::Triggered, this, &ASongSelectorActor::OnIncreaseDifficultyActionTriggered);
-    }
-    
-    if (DecreaseDifficultyAction)
-    {
-        EnhancedInputComponent->BindAction(DecreaseDifficultyAction, ETriggerEvent::Triggered, this, &ASongSelectorActor::OnDecreaseDifficultyActionTriggered);
-    }
-    
-    if (CycleVisualizerShapeAction)
-    {
-        EnhancedInputComponent->BindAction(CycleVisualizerShapeAction, ETriggerEvent::Triggered, this, &ASongSelectorActor::OnCycleVisualizerShapeActionTriggered);
-    }
-    
-    if (PlayPreviewAction)
-    {
-        EnhancedInputComponent->BindAction(PlayPreviewAction, ETriggerEvent::Triggered, this, &ASongSelectorActor::OnPlayPreviewActionTriggered);
-    }
-}
-
+// Modifie les handlers existants pour appeler Super:: et assigne Confirm à TogglePreview
 void ASongSelectorActor::OnNextActionTriggered(const FInputActionValue& Value)
 {
-    // Default next action (can be overridden by more specific bindings)
+    if (!bPlayerIsInside)
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("Input 'Confirm' ignoré: Joueur hors zone pour %s"), *GetName());
+        return; // Ne rien faire si le joueur n'est pas dans la box
+    }
+
+    // --- Reste du code de la fonction ---
+    float CurrentTime = GetWorld()->GetTimeSeconds();
+    if (CurrentTime - LastInputTime < InputCooldown)
+    {
+        return; // Ignore input if cooldown is active
+    }
+    LastInputTime = CurrentTime;
     NextSong();
 }
 
 void ASongSelectorActor::OnPreviousActionTriggered(const FInputActionValue& Value)
 {
-    // Default previous action (can be overridden by more specific bindings)
+    if (!bPlayerIsInside)
+        return;
+
+    float CurrentTime = GetWorld()->GetTimeSeconds();
+    if (CurrentTime - LastInputTime < InputCooldown)
+        return;
+    
+    LastInputTime = CurrentTime;
     PreviousSong();
 }
 
 void ASongSelectorActor::OnConfirmActionTriggered(const FInputActionValue& Value)
 {
-    ConfirmSelection();
+    Super::OnConfirmActionTriggered(Value); // <<< APPEL IMPORTANT POUR COOLDOWN/CHECK ZONE
+     if (!bPlayerIsInside && GetWorld()->GetTimeSeconds() - LastInputTime < InputCooldown) return;
+
+    // Décide ce que fait Confirm ici, par exemple :
+    TogglePreview();
+    PlaySelectionConfirmedSound(); // Le son de confirmation de la base class
+
+    // Note: Le Super::OnConfirmActionTriggered de BaseSelectorActor ne fait rien par défaut,
+    // mais l'appeler est une bonne pratique si la classe de base évolue.
+    // La fonction ConfirmSelection() a été déplacée ici ou renommée TogglePreview.
 }
 
-void ASongSelectorActor::OnNextSongActionTriggered(const FInputActionValue& Value)
+// Ajoute les nouveaux handlers
+void ASongSelectorActor::OnIncreaseDifficultyTriggered(const FInputActionValue& Value)
 {
-    NextSong();
-}
+    if (!bPlayerIsInside)
+        return;
 
-void ASongSelectorActor::OnPrevSongActionTriggered(const FInputActionValue& Value)
-{
-    PreviousSong();
-}
-
-void ASongSelectorActor::OnIncreaseDifficultyActionTriggered(const FInputActionValue& Value)
-{
+    float CurrentTime = GetWorld()->GetTimeSeconds();
+    if (CurrentTime - LastInputTime < InputCooldown)
+        return;
+    
+    LastInputTime = CurrentTime;
     IncreaseDifficulty();
+     UE_LOG(LogTemp, Log, TEXT("Input: Increase Difficulty"));
 }
 
-void ASongSelectorActor::OnDecreaseDifficultyActionTriggered(const FInputActionValue& Value)
+void ASongSelectorActor::OnDecreaseDifficultyTriggered(const FInputActionValue& Value)
 {
+    if (!bPlayerIsInside)
+        return;
+
+    float CurrentTime = GetWorld()->GetTimeSeconds();
+    if (CurrentTime - LastInputTime < InputCooldown)
+        return;
+    
+    LastInputTime = CurrentTime;
     DecreaseDifficulty();
+     UE_LOG(LogTemp, Log, TEXT("Input: Decrease Difficulty"));
 }
 
-void ASongSelectorActor::OnCycleVisualizerShapeActionTriggered(const FInputActionValue& Value)
+void ASongSelectorActor::OnCycleShapeTriggered(const FInputActionValue& Value)
 {
+    // Peut utiliser un autre cooldown si besoin, ou le même
+    if (!bPlayerIsInside)
+        return;
+
+    float CurrentTime = GetWorld()->GetTimeSeconds();
+    if (CurrentTime - LastInputTime < InputCooldown)
+        return;
+    
+    LastInputTime = CurrentTime;
     CycleVisualizerShape();
+    UE_LOG(LogTemp, Log, TEXT("Input: Cycle Shape"));
 }
 
-void ASongSelectorActor::OnPlayPreviewActionTriggered(const FInputActionValue& Value)
+void ASongSelectorActor::SetupInputBindings(APlayerController* PlayerController, UInputComponent* InputComp)
 {
-    if (SongPreviewAudio && SongPreviewAudio->IsPlaying())
+    // Appelle d'abord la fonction de base pour lier Next/Previous/Confirm
+    Super::SetupInputBindings(PlayerController, InputComp);
+
+    // Lie les nouvelles actions spécifiques à ce sélecteur
+    if (UEnhancedInputComponent* EnhancedInputComp = Cast<UEnhancedInputComponent>(InputComp))
     {
-        StopSongPreview();
-    }
-    else
-    {
-        StartSongPreview();
+        if (IncreaseDifficultyAction)
+        {
+            EnhancedInputComp->BindAction(IncreaseDifficultyAction, ETriggerEvent::Triggered, this, &ASongSelectorActor::OnIncreaseDifficultyTriggered);
+        }
+        if (DecreaseDifficultyAction)
+        {
+            EnhancedInputComp->BindAction(DecreaseDifficultyAction, ETriggerEvent::Triggered, this, &ASongSelectorActor::OnDecreaseDifficultyTriggered);
+        }
+        if (CycleShapeAction)
+        {
+            EnhancedInputComp->BindAction(CycleShapeAction, ETriggerEvent::Triggered, this, &ASongSelectorActor::OnCycleShapeTriggered);
+        }
+        UE_LOG(LogTemp, Log, TEXT("Bindings spécifiques à SongSelectorActor ajoutés."));
     }
 }

@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "Components/BoxComponent.h" // Include UBoxComponent
 #include "SpaceshipSaveManager.h"
 #include "Sound/SoundBase.h"
 #include "InputActionValue.h"
@@ -25,7 +26,10 @@ public:
 	// Root component
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	USceneComponent* RootSceneComponent;
-
+	// <<< AJOUTER LA BOX COMPONENT >>>
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components", meta = (AllowPrivateAccess = "true"))
+	UBoxComponent* TriggerBox;
+	
 	// Text component for title
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
 	class UTextRenderComponent* TitleText;
@@ -41,6 +45,15 @@ public:
 	class UInputAction* ConfirmSelectionAction;
 
 protected:
+	// <<< AJOUTER LES FONCTIONS D'OVERLAP >>>
+	UFUNCTION()
+	virtual void OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+	virtual void OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex);
+
+	// <<< AJOUTER UN FLAG POUR SAVOIR SI LE JOUEUR EST DANS LA ZONE >>>
+	bool bPlayerIsInside;
 	virtual void BeginPlay() override;
     
 	// Get the save manager
@@ -88,4 +101,13 @@ protected:
 	// Unbind inputs
 	UFUNCTION(BlueprintCallable, Category = "Input")
 	virtual void UnbindInputs();
+
+	// Helper pour vérifier si c'est le bon pion joueur
+	bool IsPlayerPawn(AActor* ActorToCheck) const;
+
+	// Input cooldown to prevent button spamming
+	float InputCooldown;
+    
+	// Timestamp of last input action
+	float LastInputTime;
 };

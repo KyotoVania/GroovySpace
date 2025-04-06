@@ -81,9 +81,5 @@ private:
     // Try to load the default materials if needed
     void InitializeDefaultMaterials();
     
-    // Input cooldown to prevent button spamming
-    float InputCooldown;
-    
-    // Timestamp of last input action
-    float LastInputTime;
+
 };

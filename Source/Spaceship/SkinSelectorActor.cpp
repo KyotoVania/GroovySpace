@@ -2,7 +2,7 @@
 #include "Components/TextRenderComponent.h"
 #include "Kismet/GameplayStatics.h"
 
-ASkinSelectorActor::ASkinSelectorActor() : InputCooldown(0.3f), LastInputTime(0.0f)
+ASkinSelectorActor::ASkinSelectorActor()
 {
     // Create player ship preview meshes (white variant)
     PlayerShipWhitePreview = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("PlayerShipWhitePreview"));
@@ -251,27 +251,39 @@ void ASkinSelectorActor::UpdateSaveData()
 }
 void ASkinSelectorActor::OnNextActionTriggered(const FInputActionValue& Value)
 {
+    if (!bPlayerIsInside)
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("Input 'Confirm' ignoré: Joueur hors zone pour %s"), *GetName());
+        return; // Ne rien faire si le joueur n'est pas dans la box
+    }
+
+    // --- Reste du code de la fonction ---
     float CurrentTime = GetWorld()->GetTimeSeconds();
     if (CurrentTime - LastInputTime < InputCooldown)
     {
         return; // Ignore input if cooldown is active
     }
-    
     LastInputTime = CurrentTime;
-    UE_LOG(LogTemp, Warning, TEXT("Next action triggered"));
+    UE_LOG(LogTemp, Warning, TEXT("Confirm action triggered (Base)"));
     NextSkin();
 }
 
 void ASkinSelectorActor::OnPreviousActionTriggered(const FInputActionValue& Value)
 {
+    if (!bPlayerIsInside)
+    {
+        UE_LOG(LogTemp, Verbose, TEXT("Input 'Confirm' ignoré: Joueur hors zone pour %s"), *GetName());
+        return; // Ne rien faire si le joueur n'est pas dans la box
+    }
+
+    // --- Reste du code de la fonction ---
     float CurrentTime = GetWorld()->GetTimeSeconds();
     if (CurrentTime - LastInputTime < InputCooldown)
     {
         return; // Ignore input if cooldown is active
     }
-    
     LastInputTime = CurrentTime;
-    UE_LOG(LogTemp, Warning, TEXT("Previous action triggered"));
+    UE_LOG(LogTemp, Warning, TEXT("Confirm action triggered (Base)"));
     PreviousSkin();
 }
 

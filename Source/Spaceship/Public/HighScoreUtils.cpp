@@ -1,98 +1,102 @@
 ﻿#include "HighScoreUtils.h"
 
-void UHighScoreUtils::AddHighScoreToSet(FHighScoreSoungSet& ScoreSet, USoundWave* Song, int32 NewScore)
+void UHighScoreUtils::AddScore(FHighScoreSongSet& ScoreSet, USoundWave* Song, int32 NewScore, int32 Difficulty)
 {
-	if (!Song)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("AddHighScoreToSet: Song is null! Cannot add score."));
-		return;
-	}
+    if (!Song)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("AddScore: Invalid song"));
+        return;
+    }
 
-	//verifier si le scoreset est null
-	if (!ScoreSet.HighScores.Num())
-	{
-		//si c'est le cas, on crée un nouveau score
-		FHighScoreList NewList;
-		NewList.Scores.Add(NewScore);
-		ScoreSet.HighScores.Add(Song, NewList);
-		UE_LOG(LogTemp, Log, TEXT("Added new song entry with score: %d"), NewScore);
-		return;
-	}
-	
-	// Vérifie si la chanson est déjà enregistrée
-	FHighScoreList* ScoreList = ScoreSet.HighScores.Find(Song);
+    TSoftObjectPtr<USoundWave> SongPtr(Song);
+    FSongScores& Scores = ScoreSet.SongScores.FindOrAdd(SongPtr);
+
+    // Create new score entry
+    FScoreEntry NewEntry;
+    NewEntry.Score = NewScore;
+    NewEntry.Difficulty = Difficulty;
+    NewEntry.DateAchieved = FDateTime::Now().ToString();
+
+    // Update statistics
+    Scores.TotalPlays++;
+    Scores.TotalScore += NewScore;
+
+    // Add to top scores and sort
+    Scores.TopScores.Add(NewEntry);
+    Scores.TopScores.Sort([](const FScoreEntry& A, const FScoreEntry& B) {
+        return A.Score > B.Score;
+    });
+
+    // Keep only top 10 scores
+    if (Scores.TopScores.Num() > 10)
+    {
+        Scores.TopScores.SetNum(10);
+    }
+}
+
+int32 UHighScoreUtils::GetBestScore(const FHighScoreSongSet& ScoreSet, USoundWave* Song)
+{
+    if (!Song)
+    {
+        return 0;
+    }
+
+    TSoftObjectPtr<USoundWave> SongPtr(Song);
+    const FSongScores* Scores = ScoreSet.SongScores.Find(SongPtr);
     
-	if (!ScoreList)
-	{
-		// Si elle n'existe pas, on la crée
-		FHighScoreList NewList;
-		NewList.Scores.Add(NewScore);
-		ScoreSet.HighScores.Add(Song, NewList);
-		UE_LOG(LogTemp, Log, TEXT("Added new song entry with score: %d"), NewScore);
-	}
-	else
-	{
-		// Ajouter le score et trier en ordre décroissant
-		ScoreList->Scores.Add(NewScore);
-		ScoreList->Scores.Sort([](const int32& A, const int32& B) {
-			return A > B; // Trie du plus grand au plus petit
-		});
+    if (!Scores || Scores->TopScores.Num() == 0)
+    {
+        return 0;
+    }
 
-		// S'assurer qu'on ne garde que les 10 meilleurs scores
-		if (ScoreList->Scores.Num() > 10)
-		{
-			ScoreList->Scores.SetNum(10);
-		}
-		//for debug print the final list
-		for (int32 i = 0; i < ScoreList->Scores.Num(); ++i)
-		{
-			UE_LOG(LogTemp, Log, TEXT("Score %d: %d"), i, ScoreList->Scores[i]);
-		}
-
-		UE_LOG(LogTemp, Log, TEXT("Added score: %d and sorted list to song : %s"), NewScore, *Song->GetName());
-	}
+    return Scores->TopScores[0].Score;
 }
 
-
-FString UHighScoreUtils::GetFormattedHighScoreList(const FHighScoreSoungSet& ScoreSet, USoundWave* Song)
+float UHighScoreUtils::GetAverageScore(const FHighScoreSongSet& ScoreSet, USoundWave* Song)
 {
-	if (!Song)
-	{
-		return TEXT("Invalid Song");
-	}
+    if (!Song)
+    {
+        return 0.0f;
+    }
 
-	const FHighScoreList* ScoreList = ScoreSet.HighScores.Find(Song);
-	if (!ScoreList)
-	{
-		return TEXT("No scores available for this song.");
-	}
+    TSoftObjectPtr<USoundWave> SongPtr(Song);
+    const FSongScores* Scores = ScoreSet.SongScores.Find(SongPtr);
+    
+    if (!Scores || Scores->TotalPlays == 0)
+    {
+        return 0.0f;
+    }
 
-	FString Result;
-	for (int32 i = 0; i < ScoreList->Scores.Num(); ++i)
-	{
-		Result += FString::Printf(TEXT("%d: %d\n"), i + 1, ScoreList->Scores[i]);
-	}
-
-	return Result;
+    return static_cast<float>(Scores->TotalScore) / Scores->TotalPlays;
 }
-int64 UHighScoreUtils::GetBestScoreForSong(const FHighScoreSoungSet& ScoreSet, USoundWave* Song)
+
+FString UHighScoreUtils::GetFormattedScoreList(const FHighScoreSongSet& ScoreSet, USoundWave* Song)
 {
-	if (!Song)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("GetBestScoreForSong: Song is null!"));
-		return -1; // Valeur invalide si le song est null
-	}
+    if (!Song)
+    {
+        return TEXT("Invalid Song");
+    }
 
-	const FHighScoreList* ScoreList = ScoreSet.HighScores.Find(Song);
-	if (!ScoreList || ScoreList->Scores.Num() == 0)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("No scores available for song: %s"), *Song->GetName());
-		return -1; // Aucune donnée pour ce son
-	}
+    TSoftObjectPtr<USoundWave> SongPtr(Song);
+    const FSongScores* Scores = ScoreSet.SongScores.Find(SongPtr);
+    
+    if (!Scores || Scores->TopScores.Num() == 0)
+    {
+        return TEXT("No scores available");
+    }
 
-	// Le premier élément est le meilleur car la liste est triée décroissante
-	int32 BestScore = ScoreList->Scores[0];
+    FString Result;
+    for (int32 i = 0; i < Scores->TopScores.Num(); ++i)
+    {
+        const FScoreEntry& Entry = Scores->TopScores[i];
+        Result += FString::Printf(TEXT("%d. %d pts (Diff: %d) - %s\n"), 
+            i + 1, Entry.Score, Entry.Difficulty, *Entry.DateAchieved);
+    }
 
-	UE_LOG(LogTemp, Log, TEXT("Best score for song %s: %d"), *Song->GetName(), BestScore);
-	return BestScore;
+    return Result;
+}
+
+bool UHighScoreUtils::HasMetScoreThreshold(const FHighScoreSongSet& ScoreSet, USoundWave* Song, int32 Threshold)
+{
+    return GetBestScore(ScoreSet, Song) >= Threshold;
 }

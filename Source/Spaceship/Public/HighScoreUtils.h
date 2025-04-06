@@ -3,7 +3,7 @@
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "Sound/SoundWave.h"
-#include "FHighScoreSoungSet.h"
+#include "FHighScoreSongSet.h"
 #include "HighScoreUtils.generated.h"
 
 UCLASS()
@@ -12,15 +12,21 @@ class SPACESHIP_API UHighScoreUtils : public UBlueprintFunctionLibrary
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable, Category = "HighScore")
-	static FString GetFormattedHighScoreList(const FHighScoreSoungSet& ScoreSet, USoundWave* Song);
+	UFUNCTION(BlueprintCallable, Category = "High Score")
+	static void AddScore(UPARAM(ref) FHighScoreSongSet& ScoreSet, 
+						USoundWave* Song, 
+						int32 NewScore, 
+						int32 Difficulty);
 
-	// Fonction pour ajouter un score à une chanson et trier la liste
-	UFUNCTION(BlueprintCallable, Category = "HighScore")
-	static void AddHighScoreToSet(UPARAM(ref) FHighScoreSoungSet& ScoreSet, USoundWave* Song, int32 NewScore);
+	UFUNCTION(BlueprintCallable, Category = "High Score")
+	static int32 GetBestScore(const FHighScoreSongSet& ScoreSet, USoundWave* Song);
 
-	UFUNCTION(BlueprintCallable, Category = "HighScore")
-	static int64 GetBestScoreForSong(const FHighScoreSoungSet& ScoreSet, USoundWave* Song);
+	UFUNCTION(BlueprintCallable, Category = "High Score")
+	static float GetAverageScore(const FHighScoreSongSet& ScoreSet, USoundWave* Song);
 
+	UFUNCTION(BlueprintCallable, Category = "High Score")
+	static FString GetFormattedScoreList(const FHighScoreSongSet& ScoreSet, USoundWave* Song);
+
+	UFUNCTION(BlueprintCallable, Category = "High Score")
+	static bool HasMetScoreThreshold(const FHighScoreSongSet& ScoreSet, USoundWave* Song, int32 Threshold);
 };
-

@@ -4,7 +4,7 @@
 #include "GameFramework/SaveGame.h"
 #include "Sound/SoundWave.h"
 #include "UVisualizerManager.h"
-#include "FHighScoreSoungSet.h"
+#include "FHighScoreSongSet.h"
 #include "uSpaceshipSaveGame.generated.h"
 
 /**
@@ -28,7 +28,7 @@ public:
 
 	// High scores per song
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Scores")
-	FHighScoreSoungSet SongHighScores;
+	FHighScoreSongSet SongHighScores;
 
 	// Game difficulty (1-10)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Game", meta = (ClampMin = "1", ClampMax = "10"))
@@ -48,5 +48,5 @@ public:
     
 	// Last played song
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Audio")
-	TObjectPtr<USoundWave> LastSong;
+	TSoftObjectPtr<USoundWave> LastSong;
 };

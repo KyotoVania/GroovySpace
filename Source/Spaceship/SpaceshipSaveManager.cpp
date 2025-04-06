@@ -96,9 +96,8 @@ void USpaceshipSaveManager::AddHighScore(USoundWave* Song, int32 Score)
     CurrentSave->LastScore = Score;
     CurrentSave->LastSong = Song;
     
-    // Add score to high scores
-    UHighScoreUtils::AddHighScoreToSet(CurrentSave->SongHighScores, Song, Score);
-    
+    // Add score to high scores with	static void AddScore(UPARAM(ref) FHighScoreSongSet& ScoreSet, USoundWave* Song, int32 NewScore,     int32 Difficulty);
+    UHighScoreUtils::AddScore(CurrentSave->SongHighScores, Song, Score, CurrentSave->Difficulty);
     // Save changes
     SaveGame();
 }
@@ -109,8 +108,7 @@ int32 USpaceshipSaveManager::GetBestScore(USoundWave* Song) const
     {
         return 0;
     }
-    
-    return UHighScoreUtils::GetBestScoreForSong(CurrentSave->SongHighScores, Song);
+    return UHighScoreUtils::GetBestScore(CurrentSave->SongHighScores, Song);
 }
 
 FString USpaceshipSaveManager::GetFormattedHighScores(USoundWave* Song) const
@@ -119,6 +117,7 @@ FString USpaceshipSaveManager::GetFormattedHighScores(USoundWave* Song) const
     {
         return TEXT("No scores available");
     }
+
+    return UHighScoreUtils::GetFormattedScoreList(CurrentSave->SongHighScores, Song);
     
-    return UHighScoreUtils::GetFormattedHighScoreList(CurrentSave->SongHighScores, Song);
 }

@@ -2,18 +2,15 @@
 
 #include "CoreMinimal.h"
 #include "BaseSelectorActor.h"
-#include "Sound/SoundWave.h"
-#include "UVisualizerManager.h"
+#include "SongOptionsDataAsset.h"
 #include "Components/AudioComponent.h"
+#include "Components/TextRenderComponent.h"
 #include "SongSelectorActor.generated.h"
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnSongChanged, USoundWave*, NewSong);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDifficultyChanged, int32, NewDifficulty);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnVisualizerShapeChanged, EVisualizerShape, NewShape);
 
-/**
- * Actor for selecting songs, difficulty, and visualizer shape
- */
 UCLASS()
 class SPACESHIP_API ASongSelectorActor : public ABaseSelectorActor
 {
@@ -22,22 +19,10 @@ class SPACESHIP_API ASongSelectorActor : public ABaseSelectorActor
 public:
     ASongSelectorActor();
 
-    // Available songs
+    // Data asset containing all song options
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Songs")
-    TArray<USoundWave*> AvailableSongs;
+    USongOptionsDataAsset* SongOptions;
 
-    // Song selection changed delegate
-    UPROPERTY(BlueprintAssignable, Category = "Events")
-    FOnSongChanged OnSongChanged;
-
-    // Difficulty changed delegate
-    UPROPERTY(BlueprintAssignable, Category = "Events")
-    FOnDifficultyChanged OnDifficultyChanged;
-
-    // Visualizer shape changed delegate
-    UPROPERTY(BlueprintAssignable, Category = "Events")
-    FOnVisualizerShapeChanged OnVisualizerShapeChanged;
-    
     // UI Components
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     UTextRenderComponent* SongTitleText;
@@ -51,115 +36,80 @@ public:
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     UTextRenderComponent* VisualizerShapeText;
 
-    // Preview components
+    // Audio preview component
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    UAudioComponent* SongPreviewAudio;
-    
-    // Additional input actions
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-    class UInputAction* NextSongAction;
-    
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-    class UInputAction* PrevSongAction;
-    
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-    class UInputAction* IncreaseDifficultyAction;
-    
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-    class UInputAction* DecreaseDifficultyAction;
-    
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-    class UInputAction* CycleVisualizerShapeAction;
-    
-    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-    class UInputAction* PlayPreviewAction;
+    UAudioComponent* PreviewComponent;
 
-    // Get current song
+    // Change event delegates
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnSongChanged OnSongChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnDifficultyChanged OnDifficultyChanged;
+
+    UPROPERTY(BlueprintAssignable, Category = "Events")
+    FOnVisualizerShapeChanged OnVisualizerShapeChanged;
+
+    // Getter functions
     UFUNCTION(BlueprintCallable, Category = "Songs")
-    USoundWave* GetCurrentSong() const;
+    FSongMetadata GetCurrentSong() const;
 
-    // Get current difficulty
-    UFUNCTION(BlueprintCallable, Category = "Difficulty")
+    UFUNCTION(BlueprintCallable, Category = "Songs")
     int32 GetCurrentDifficulty() const;
 
-    // Get current visualizer shape
-    UFUNCTION(BlueprintCallable, Category = "Visualizer")
+    UFUNCTION(BlueprintCallable, Category = "Songs")
     EVisualizerShape GetCurrentVisualizerShape() const;
 
-    // Get high score for current song
-    UFUNCTION(BlueprintCallable, Category = "Scores")
-    int32 GetCurrentSongHighScore() const;
-
-    // Song navigation
+    // Selection functions
     UFUNCTION(BlueprintCallable, Category = "Selection")
     void NextSong();
 
     UFUNCTION(BlueprintCallable, Category = "Selection")
     void PreviousSong();
 
-    // Difficulty adjustment
     UFUNCTION(BlueprintCallable, Category = "Selection")
     void IncreaseDifficulty();
 
     UFUNCTION(BlueprintCallable, Category = "Selection")
     void DecreaseDifficulty();
 
-    // Visualizer shape cycling
     UFUNCTION(BlueprintCallable, Category = "Selection")
     void CycleVisualizerShape();
 
-    // Confirm selection
-    UFUNCTION(BlueprintCallable, Category = "Selection")
-    void ConfirmSelection();
-
     // Preview functions
     UFUNCTION(BlueprintCallable, Category = "Preview")
-    void StartSongPreview();
+    void TogglePreview();
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+    UInputAction* IncreaseDifficultyAction;
 
-    UFUNCTION(BlueprintCallable, Category = "Preview")
-    void StopSongPreview();
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+    UInputAction* DecreaseDifficultyAction;
 
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+    UInputAction* CycleShapeAction;
 protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
-    
-    // Override UpdateUI to refresh the visual representation
     virtual void UpdateUI() override;
-    
-    // Override SetupInputBindings to bind additional input actions
-    virtual void SetupInputBindings(APlayerController* PlayerController, UInputComponent* PlayerInputComponent) override;
-    
-    // Override base input handlers
+
+    // Input handling
     virtual void OnNextActionTriggered(const FInputActionValue& Value) override;
     virtual void OnPreviousActionTriggered(const FInputActionValue& Value) override;
     virtual void OnConfirmActionTriggered(const FInputActionValue& Value) override;
-    
-    // Additional input handlers
-    UFUNCTION(BlueprintCallable, Category = "Input")
-    void OnNextSongActionTriggered(const FInputActionValue& Value);
-    
-    UFUNCTION(BlueprintCallable, Category = "Input")
-    void OnPrevSongActionTriggered(const FInputActionValue& Value);
-    
-    UFUNCTION(BlueprintCallable, Category = "Input")
-    void OnIncreaseDifficultyActionTriggered(const FInputActionValue& Value);
-    
-    UFUNCTION(BlueprintCallable, Category = "Input")
-    void OnDecreaseDifficultyActionTriggered(const FInputActionValue& Value);
-    
-    UFUNCTION(BlueprintCallable, Category = "Input")
-    void OnCycleVisualizerShapeActionTriggered(const FInputActionValue& Value);
-    
-    UFUNCTION(BlueprintCallable, Category = "Input")
-    void OnPlayPreviewActionTriggered(const FInputActionValue& Value);
+    virtual void OnIncreaseDifficultyTriggered(const FInputActionValue& Value);
+    virtual void OnDecreaseDifficultyTriggered(const FInputActionValue& Value);
+    virtual void OnCycleShapeTriggered(const FInputActionValue& Value);
+
+    // On doit override SetupInputBindings pour ajouter les nouveaux bindings
+    virtual void SetupInputBindings(APlayerController* PlayerController, UInputComponent* InputComp) override;
 
 private:
-    // Current song index
     int32 CurrentSongIndex;
+    bool bIsPreviewPlaying;
+    FTimerHandle PreviewFadeTimerHandle;
 
-    // Update the save file with current selection
+    void StartPreview();
+    void StopPreview();
     void UpdateSaveData();
-
-    // Get shape name from enum
     FString GetShapeName(EVisualizerShape Shape) const;
 };

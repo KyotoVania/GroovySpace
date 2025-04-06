@@ -3,8 +3,9 @@
 #include "Kismet/GameplayStatics.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+#include "Components/BoxComponent.h"
 
-ABaseSelectorActor::ABaseSelectorActor()
+ABaseSelectorActor::ABaseSelectorActor() : InputCooldown(0.3f), LastInputTime(0.0f)
 {
 	PrimaryActorTick.bCanEverTick = false;
     
@@ -18,12 +19,28 @@ ABaseSelectorActor::ABaseSelectorActor()
 	TitleText->SetHorizontalAlignment(EHTA_Center);
 	TitleText->SetWorldSize(20.0f);
 	TitleText->SetTextRenderColor(FColor::White);
+	// <<< CREER LA TRIGGER BOX >>>
+	TriggerBox = CreateDefaultSubobject<UBoxComponent>(TEXT("TriggerBox"));
+	TriggerBox->SetupAttachment(RootComponent); // Attache la box au root
+	TriggerBox->SetCollisionProfileName(TEXT("Trigger")); // Profil de collision pour overlap seulement
+	TriggerBox->SetGenerateOverlapEvents(true);
+	// Optionnel : Définir une taille par défaut, ajustable dans l'éditeur
+	TriggerBox->SetBoxExtent(FVector(150.0f, 150.0f, 100.0f));
 }
 
 void ABaseSelectorActor::BeginPlay()
 {
 	Super::BeginPlay();
-    
+	// <<< LIER LES EVENEMENTS D'OVERLAP >>>
+	if (TriggerBox)
+	{
+		TriggerBox->OnComponentBeginOverlap.AddDynamic(this, &ABaseSelectorActor::OnOverlapBegin);
+		TriggerBox->OnComponentEndOverlap.AddDynamic(this, &ABaseSelectorActor::OnOverlapEnd);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("TriggerBox non trouvé dans %s"), *GetName());
+	}
 	// Initialize save manager
 	SaveManager = GetSaveManager();
 }
@@ -128,4 +145,34 @@ void ABaseSelectorActor::UnbindInputs()
 	// Unbind actions if needed
 	// The actions will be unbound automatically when the input component is destroyed,
 	// but we provide this method for explicit unbinding if needed
+}
+
+
+// --- Fonctions d'Overlap ---
+
+void ABaseSelectorActor::OnOverlapBegin(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
+{
+	if (OtherActor && IsPlayerPawn(OtherActor))
+	{
+		bPlayerIsInside = true;
+		UE_LOG(LogTemp, Log, TEXT("Joueur ENTRÉ dans la zone de %s"), *GetName());
+		// Optionnel : Activer visuellement quelque chose, changer l'UI, etc.
+	}
+}
+
+void ABaseSelectorActor::OnOverlapEnd(UPrimitiveComponent* OverlappedComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex)
+{
+	if (OtherActor && IsPlayerPawn(OtherActor))
+	{
+		bPlayerIsInside = false;
+		UE_LOG(LogTemp, Log, TEXT("Joueur SORTI de la zone de %s"), *GetName());
+		// Optionnel : Désactiver l'effet visuel, etc.
+	}
+}
+
+// --- Helper pour vérifier le joueur ---
+bool ABaseSelectorActor::IsPlayerPawn(AActor* ActorToCheck) const
+{
+	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0); // Prend le joueur 0
+	return (ActorToCheck != nullptr && ActorToCheck == PlayerPawn);
 }
