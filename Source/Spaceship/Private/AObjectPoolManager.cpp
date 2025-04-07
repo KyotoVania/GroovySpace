@@ -7,6 +7,13 @@ AObjectPoolManager::AObjectPoolManager()
 	PrimaryActorTick.bCanEverTick = false; // Pas besoin de tick
 }
 
+//begin to play InitializePool
+
+void AObjectPoolManager::BeginPlay()
+{
+	Super::BeginPlay();
+	InitializePool(PooledActorClass, PoolSize);
+}
 void AObjectPoolManager::InitializePool(TSubclassOf<AActor> ActorClass, int32 Size)
 {
 	if (!ActorClass || Size <= 0)

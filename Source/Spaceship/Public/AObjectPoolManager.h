@@ -15,6 +15,7 @@ class SPACESHIP_API AObjectPoolManager : public AActor
 public:
 	// Constructeur
 	AObjectPoolManager();
+	void BeginPlay();
 
 	// Initialise le pool avec une classe d'objets et une taille
 	UFUNCTION(BlueprintCallable, Category = "Object Pool")

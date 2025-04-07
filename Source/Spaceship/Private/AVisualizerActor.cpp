@@ -2,6 +2,7 @@
 
 #include "EngineUtils.h"
 #include "Engine/World.h"
+
 #include "Kismet/GameplayStatics.h"
 
 AVisualizerActor::AVisualizerActor()
@@ -14,6 +15,7 @@ AVisualizerActor::AVisualizerActor()
 	AudioComponent->bAutoActivate = false;
 	AudioComponent->SetupAttachment(RootComponent);
 }
+
 void AVisualizerActor::BeginPlay()
 {
 	Super::BeginPlay();
@@ -30,19 +32,45 @@ void AVisualizerActor::BeginPlay()
 	// Update difficulty from save game
 	if (SaveManager && SaveManager->CurrentSave)
 	{
-		VisualizerSettings->Difficulty = SaveManager->CurrentSave->Difficulty;
-		VisualizerSettings->VisualizerShape = SaveManager->CurrentSave->VisualizerShape;
-		//get the song from the save game
-		USoundWave* LastSong = SaveManager->CurrentSave->LastSong.Get();
-		if (LastSong)
+		// Set materials from SkinOptions based on saved skin ID
+		if (SkinOptions && SkinOptions->AvailableSkins.IsValidIndex(SaveManager->CurrentSave->ColorSkinID))
 		{
-			CurrentSoundWave = LastSong;
-			VisualizerSettings->ConstantQNRT->Sound = CurrentSoundWave;
-			UE_LOG(LogTemp, Log, TEXT("Last song loaded from save: %s"), *CurrentSoundWave->GetName());
+			ColorMaterials = SkinOptions->AvailableSkins[SaveManager->CurrentSave->ColorSkinID].ProjectileMaterialSets;
+		}
+		else if (SkinOptions)
+		{
+			// Fallback to default materials
+			ColorMaterials.WhiteMaterial = SkinOptions->DefaultWhiteMaterial;
+			ColorMaterials.BlackMaterial = SkinOptions->DefaultBlackMaterial;
 		}
 		else
 		{
-			UE_LOG(LogTemp, Warning, TEXT("No last song found in save game"));
+			// Fallback to default materials
+			ColorMaterials.WhiteMaterial = nullptr;
+			ColorMaterials.BlackMaterial = nullptr;
+		}
+		// Get the last played song
+		USoundWave* LastSong = SaveManager->CurrentSave->LastSong.Get();
+		if (LastSong && AnalysisDataManager)
+		{
+			// Find pre-analyzed data
+			UConstantQNRT* PreAnalyzedData = AnalysisDataManager->FindAnalysisDataForSound(LastSong);
+			if (PreAnalyzedData)
+			{
+				// Use the pre-analyzed data
+				VisualizerSettings->ConstantQNRT = PreAnalyzedData;
+				CurrentSoundWave = LastSong;
+				AudioComponent->SetSound(CurrentSoundWave);
+            
+				// No need to call BeginCalculTest() as data is pre-analyzed
+				// Just initialize visualizer components
+				InitializeAudioAnalysis();
+				InitializeVisualizer();
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Pre-analyzed data not found for song: %s"), *LastSong->GetName());
+			}
 		}
 	}
 	for (TActorIterator<AObjectPoolManager> It(GetWorld()); It; ++It)
@@ -51,10 +79,6 @@ void AVisualizerActor::BeginPlay()
 		break;
 	}
 	// Initialize audio analysis
-	InitializeAudioAnalysis();
-
-	// Initialize the visualizer components
-	InitializeVisualizer();
 
 	
 	// Store initial position and apply bounds

@@ -6,6 +6,7 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/ArrowComponent.h"
 #include "NiagaraComponent.h"
+#include "Spaceship/SpaceshipSaveManager.h"
 #include "ProjectileSelectorActor.generated.h"
 
 /**

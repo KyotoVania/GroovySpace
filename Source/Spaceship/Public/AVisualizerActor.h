@@ -9,7 +9,8 @@
 #include "AObjectPoolManager.h"
 #include "AudioSynesthesia/Classes/ConstantQNRT.h"
 #include "Components/AudioComponent.h"
-#include "Spaceship/SkinOptionsDataAsset.h"
+#include "Spaceship/Selector/SkinOptionsDataAsset.h"
+#include "Spaceship/UAnalysisDataManager.h"
 #include "Spaceship/SpaceshipSaveManager.h"
 #include "AVisualizerActor.generated.h"
 
@@ -144,7 +145,8 @@ public:
 	// Sound wave currently being analyzed
 	UPROPERTY(BlueprintReadOnly, Category = "Audio")
 	USoundWave* CurrentSoundWave;
-
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Analysis")
+	UAnalysisDataManager* AnalysisDataManager;
 protected:
 	// Tableau des barres générées
 	UPROPERTY()
@@ -174,6 +176,8 @@ protected:
 
 	// Timer handle for updates
 	FTimerHandle UpdateTimerHandle;
+
+	
 private:
 	FTimerHandle BossSlideTimerHandle; // Timer pour le mouvement du boss
 	FVector LinearPosition; // Nouvelle variable pour suivre la position de base

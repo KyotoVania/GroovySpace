@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "BaseSelectorActor.h"
 #include "SkinOptionsDataAsset.h"
+#include "Spaceship/SpaceshipSaveManager.h"
 #include "Components/StaticMeshComponent.h"
 #include "SkinSelectorActor.generated.h"
 
