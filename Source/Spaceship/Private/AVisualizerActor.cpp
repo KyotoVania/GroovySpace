@@ -1,16 +1,104 @@
 ﻿#include "AVisualizerActor.h"
+
+#include "EngineUtils.h"
 #include "Engine/World.h"
+#include "Kismet/GameplayStatics.h"
 
 AVisualizerActor::AVisualizerActor()
 {
 	PrimaryActorTick.bCanEverTick = true;
 
+
+	// Create audio component
+	AudioComponent = CreateDefaultSubobject<UAudioComponent>(TEXT("AudioComponent"));
+	AudioComponent->bAutoActivate = false;
+	AudioComponent->SetupAttachment(RootComponent);
 }
 void AVisualizerActor::BeginPlay()
 {
 	Super::BeginPlay();
-	LinearPosition = GetActorLocation(); // Initialisation correcte
-	LinearPosition = LinearPosition.BoundToBox(MovementBoundsMin, MovementBoundsMax); // Clamping initial
+
+	// Get save manager
+	SaveManager = USpaceshipSaveManager::GetSaveManager(GetWorld());
+    
+	if (!VisualizerSettings)
+	{
+		UE_LOG(LogTemp, Error, TEXT("VisualizerSettings is NULL! Cannot initialize visualizer."));
+		return;
+	}
+
+	// Update difficulty from save game
+	if (SaveManager && SaveManager->CurrentSave)
+	{
+		VisualizerSettings->Difficulty = SaveManager->CurrentSave->Difficulty;
+		VisualizerSettings->VisualizerShape = SaveManager->CurrentSave->VisualizerShape;
+		//get the song from the save game
+		USoundWave* LastSong = SaveManager->CurrentSave->LastSong.Get();
+		if (LastSong)
+		{
+			CurrentSoundWave = LastSong;
+			VisualizerSettings->ConstantQNRT->Sound = CurrentSoundWave;
+			UE_LOG(LogTemp, Log, TEXT("Last song loaded from save: %s"), *CurrentSoundWave->GetName());
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("No last song found in save game"));
+		}
+	}
+	for (TActorIterator<AObjectPoolManager> It(GetWorld()); It; ++It)
+	{
+		PoolManager = *It;
+		break;
+	}
+	// Initialize audio analysis
+	InitializeAudioAnalysis();
+
+	// Initialize the visualizer components
+	InitializeVisualizer();
+
+	
+	// Store initial position and apply bounds
+	LinearPosition = GetActorLocation();
+	LinearPosition = LinearPosition.BoundToBox(MovementBoundsMin, MovementBoundsMax);
+}
+
+void AVisualizerActor::InitializeAudioAnalysis()
+{	
+	if (!VisualizerSettings || !VisualizerSettings->ConstantQNRT)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Invalid VisualizerSettings or ConstantQNRT"));
+		return;
+	}
+
+	auto* QNRT = VisualizerSettings->ConstantQNRT;
+    
+	// Ensure settings exist
+	if (!QNRT->Settings)
+	{
+		QNRT->Settings = NewObject<UConstantQNRTSettings>(QNRT);
+		if (!QNRT->Settings)
+		{
+			UE_LOG(LogTemp, Error, TEXT("Failed to create ConstantQNRT Settings"));
+			return;
+		}
+	}
+
+	// Configure default settings if needed
+	if (QNRT->Settings->NumBands <= 0)
+	{
+		QNRT->Settings->NumBands = 32;  // Default number of frequency bands
+		QNRT->Settings->StartingFrequency = 20.0f;  // Low audible frequency
+	}
+
+	// Initialize cooldown timers
+	BandCooldownTimers.Init(0.0f, QNRT->Settings->NumBands);
+
+	// Begin calculation of thresholds if sound is set
+	if (QNRT->Sound)
+	{
+		CurrentSoundWave = QNRT->Sound;
+		BeginCalculTest();
+	}
 }
 void AVisualizerActor::InitializeVisualizer()
 {
@@ -38,6 +126,8 @@ void AVisualizerActor::InitializeVisualizer()
 	SpawnBars();
 	SpawnBoss();
 }
+
+
 
 void AVisualizerActor::SpawnBars()
 {
@@ -335,10 +425,12 @@ void AVisualizerActor::BeginCalculTest()
         UE_LOG(LogTemp, Warning, TEXT("VisualizerSettings, ConstantQNRT, Sound, or Settings is null"));
         return;
     }
-
+	//add name of the sound
+	UE_LOG(LogTemp, Warning, TEXT("Sound name: %s"), *VisualizerSettings->ConstantQNRT->Sound->GetName());
     UConstantQNRT* QNRT = VisualizerSettings->ConstantQNRT;
     const float Duration = QNRT->Sound->Duration;
     const int32 NumBands = QNRT->Settings->NumBands;
+	MusicDuration = QNRT->Sound->Duration;
 
     if (Duration <= 0 || NumBands <= 0)
     {
@@ -346,6 +438,8 @@ void AVisualizerActor::BeginCalculTest()
         return;
     }
 
+	//set the audio in the audio component
+	AudioComponent->SetSound(CurrentSoundWave);
     // Tableau pour stocker les moyennes de chaque bande
     TArray<float> BandAverages;
     BandAverages.SetNum(NumBands);
@@ -417,14 +511,24 @@ void AVisualizerActor::CalculateThresholds(const TArray<float>& BandAverages)
 	}
 }
 
-void AVisualizerActor::UpdateVisualizerAtTime(AObjectPoolManager* PoolManager, const float InSeconds)
+void AVisualizerActor::UpdateVisualizerAtTime( const float InSeconds)
 {
-	if (!VisualizerSettings || !VisualizerSettings->ConstantQNRT || !PoolManager)
+	if (!PoolManager)
 	{
-		UE_LOG(LogTemp, Error, TEXT("VisualizerSettings, ConstantQNRT, or PoolManager is NULL!"));
+		UE_LOG(LogTemp, Error, TEXT("PoolManager is NULL!"));
+		return;
+	}
+	if (!VisualizerSettings || !VisualizerSettings->ConstantQNRT)
+	{
+		UE_LOG(LogTemp, Error, TEXT("VisualizerSettings or ConstantQNRT is NULL!"));
 		return;
 	}
 
+	if (!VisualizerSettings->ConstantQNRT->Settings)
+	{
+		UE_LOG(LogTemp, Error, TEXT("ConstantQNRT Settings is NULL!"));
+		return;
+	}
 	// Récupération des valeurs à l'instant donné
 	TArray<float> BandValues;
 	VisualizerSettings->ConstantQNRT->GetNormalizedChannelConstantQAtTime(InSeconds, 0, BandValues);
@@ -433,7 +537,7 @@ void AVisualizerActor::UpdateVisualizerAtTime(AObjectPoolManager* PoolManager, c
 	UpdateVisualizer(BandValues);
 
 	// ✅ Vérification des seuils pour déclencher les SoundSpheres
-	CheckThresholds(PoolManager, BandValues);
+	CheckThresholds(BandValues);
 }
 
 
@@ -477,7 +581,7 @@ TArray<float> AVisualizerActor::CalculateBandAverages(const TArray<float>& BandV
 	return BandAverages;
 }
 
-void AVisualizerActor::CheckThresholds(AObjectPoolManager* PoolManager, const TArray<float>& BandValues)
+void AVisualizerActor::CheckThresholds(const TArray<float>& BandValues)
 {
 	if (!VisualizerSettings || VisualizerSettings->BandThresholds.Num() != BandValues.Num() || !PoolManager)
 	{
@@ -499,7 +603,7 @@ void AVisualizerActor::CheckThresholds(AObjectPoolManager* PoolManager, const TA
 			float SpeedMultiplier = BandValues[i] - VisualizerSettings->BandThresholds[i];
 
 			// ✅ Spawner une SoundSphere en fonction du seuil franchi
-			SpawnSoundSphereFromThreshold(PoolManager, i, SpeedMultiplier);
+			SpawnSoundSphereFromThreshold( i, SpeedMultiplier);
 
 			// Réinitialiser le cooldown pour ce band
 			BandCooldownTimers[i] = SpawnCooldown;
@@ -507,7 +611,7 @@ void AVisualizerActor::CheckThresholds(AObjectPoolManager* PoolManager, const TA
 	}
 }
 
-void AVisualizerActor::SpawnSoundSphereFromThreshold(AObjectPoolManager* PoolManager, int32 BandIndex, float SpeedMultiplier)
+void AVisualizerActor::SpawnSoundSphereFromThreshold( int32 BandIndex, float SpeedMultiplier)
 {
 	if (!PoolManager)
 	{

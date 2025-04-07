@@ -7,6 +7,10 @@
 #include "FMaterialSet.h"
 #include "ASoundSphere.h"
 #include "AObjectPoolManager.h"
+#include "AudioSynesthesia/Classes/ConstantQNRT.h"
+#include "Components/AudioComponent.h"
+#include "Spaceship/SkinOptionsDataAsset.h"
+#include "Spaceship/SpaceshipSaveManager.h"
 #include "AVisualizerActor.generated.h"
 
 USTRUCT(BlueprintType)
@@ -85,7 +89,12 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Materials")
 	FMaterialSet ColorMaterials;
-
+	// In public section:
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Audio")
+	UAudioComponent* AudioComponent;
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visualizer")
+	USkinOptionsDataAsset* SkinOptions;
 	/**
 	 * FUNCTIONS
 	 */
@@ -94,12 +103,14 @@ public:
 	void InitializeVisualizer();
 	
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
-	void UpdateVisualizerAtTime(AObjectPoolManager* PoolManager, const float InSeconds);
-
+	void UpdateVisualizerAtTime(const float InSeconds);
 	// Mise à jour du visualiseur
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
 	void UpdateVisualizer(const TArray<float>& BandValues);
 
+	// In public UFUNCTION section:
+	UFUNCTION(BlueprintCallable, Category = "Audio")
+	UAudioComponent* GetAudioComponent() const { return AudioComponent; }
 	// Réinitialisation du visualiseur
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
 	void ResetVisualizer();
@@ -117,7 +128,7 @@ public:
 	void CalculateThresholds(const TArray<float>& BandAverages);
 	
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
-	void CheckThresholds(AObjectPoolManager* PoolManager, const TArray<float>& BandValues);
+	void CheckThresholds( const TArray<float>& BandValues);
 
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
 	float CalculateGlobalAmplitude(const TArray<float>& BandValues);
@@ -126,13 +137,21 @@ public:
 	void SpawnBoss();
 	
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
-	void SpawnSoundSphereFromThreshold(AObjectPoolManager* PoolManager, int32 BandIndex, float SpeedMultiplier);
+	void SpawnSoundSphereFromThreshold( int32 BandIndex, float SpeedMultiplier);
+	UPROPERTY(BlueprintReadOnly, Category = "Audio")
+	float MusicDuration;
+
+	// Sound wave currently being analyzed
+	UPROPERTY(BlueprintReadOnly, Category = "Audio")
+	USoundWave* CurrentSoundWave;
 
 protected:
 	// Tableau des barres générées
 	UPROPERTY()
 	TArray<AActor*> SpawnedBars;
-
+	UPROPERTY()
+	AObjectPoolManager* PoolManager;
+	
 	int32 LowFrequencyExceedCount = 0;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visualizer")
@@ -148,6 +167,13 @@ protected:
 	// Axe d'échelle des barres
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visualizer")
 	EScaleAxis DisplacementAxis = EScaleAxis::Z; // Par défaut, échelle sur Z.
+	
+	// Save manager reference
+	UPROPERTY()
+	USpaceshipSaveManager* SaveManager;
+
+	// Timer handle for updates
+	FTimerHandle UpdateTimerHandle;
 private:
 	FTimerHandle BossSlideTimerHandle; // Timer pour le mouvement du boss
 	FVector LinearPosition; // Nouvelle variable pour suivre la position de base
@@ -167,5 +193,7 @@ private:
 	void SpawnBarAtLocation(const FVector& Location, const FRotator& Rotation);
 	void SpawnCircularBars(const int32 Bands, const float TotalAngle);
 	void SpawnAlignedBars(const int32 Bands);
-	
+
+	// Initialize audio analysis settings
+	void InitializeAudioAnalysis();
 };
