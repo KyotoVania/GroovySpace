@@ -25,6 +25,7 @@ public:
 	void OnOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, 
 				   UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, 
 				   bool bFromSweep, const FHitResult& SweepResult);
+	void Reset();
 
 	void FireInDirection(const FVector& ShootDirection);
 
@@ -54,10 +55,12 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "SoundSphere")
 	void SetColor(bool bNewColor);
+	void StopMovement();
+	UPROPERTY()
+	bool bIsActive = false;
 private:
 	FTimerHandle StopMovementTimerHandle;
 
-	void StopMovement();
 	UPROPERTY(VisibleAnywhere, Category = "Components")
 	USphereComponent* CollisionComponent;
 

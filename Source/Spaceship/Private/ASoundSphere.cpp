@@ -95,20 +95,36 @@ void ASoundSphere::OnOverlap(UPrimitiveComponent* OverlappedComponent, AActor* O
 		}
 	}
 }
+void ASoundSphere::Reset()
+{
+	bIsActive = true;
+	Velocity = FVector::ZeroVector;
+	MoveSpeed = 1200.0f;
+    
+	if (MeshComponent)
+	{
+		MeshComponent->SetVisibility(true);
+	}
+	if (CollisionComponent)
+	{
+		CollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	}
+
+	SetActorLocation(FVector::ZeroVector);
+}
 
 void ASoundSphere::StopMovement()
 {
-	// Stop the sphere's movement
+	if (!bIsActive) return; // Don't stop if already stopped
+    
+	bIsActive = false;
 	Velocity = FVector::ZeroVector;
 	MoveSpeed = 0.0f;
-	//disable collision
 	CollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	//disable rendering
 	MeshComponent->SetVisibility(false);
-	//set location to 0,0,0
 	SetActorLocation(FVector::ZeroVector);
-	// Add the "Inactive" tag
 	Tags.Add(FName("Inactive"));
+	Tags.Remove(FName("Active"));
 }
 
 void ASoundSphere::SetColor(bool bNewColor)

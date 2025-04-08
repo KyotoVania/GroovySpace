@@ -1,4 +1,6 @@
 ﻿#include "AObjectPoolManager.h"
+
+#include "ASoundSphere.h"
 #include "Engine/World.h"
 #include "GameFramework/Actor.h"
 
@@ -14,6 +16,7 @@ void AObjectPoolManager::BeginPlay()
 	Super::BeginPlay();
 	InitializePool(PooledActorClass, PoolSize);
 }
+
 void AObjectPoolManager::InitializePool(TSubclassOf<AActor> ActorClass, int32 Size)
 {
 	if (!ActorClass || Size <= 0)
@@ -43,16 +46,24 @@ AActor* AObjectPoolManager::GetPooledObject()
 {
 	for (AActor* Actor : ObjectPool)
 	{
-		// Vérifier si l'acteur a le tag "Inactive"
-		if (Actor && Actor->Tags.Contains(FName("Inactive")))
+		ASoundSphere* SoundSphere = Cast<ASoundSphere>(Actor);
+		if (Actor && Actor->Tags.Contains(FName("Inactive")) && (!SoundSphere || !SoundSphere->bIsActive))
 		{
+			// Reset actor state
 			Actor->SetActorHiddenInGame(false);
 			Actor->SetActorEnableCollision(true);
+            
+			// Reset component state via interface
+			if (SoundSphere)
+			{
+				SoundSphere->Reset();
+			}
 
-			// Supprimer le tag "Inactive" et ajouter "Active"
+			// Update tags
 			Actor->Tags.Remove(FName("Inactive"));
 			Actor->Tags.Add(FName("Active"));
-			// Planifier la désactivation automatique avec un TimerHandle unique
+
+			// Set deactivation timer
 			if (DeactivationDelay > 0.0f)
 			{
 				FTimerHandle DeactivationTimerHandle;
@@ -60,10 +71,10 @@ AActor* AObjectPoolManager::GetPooledObject()
 					DeactivationTimerHandle,
 					FTimerDelegate::CreateUObject(this, &AObjectPoolManager::AutoDeactivate, Actor),
 					DeactivationDelay,
-					false // Pas de répétition
+					false
 				);
 			}
-			
+            
 			return Actor;
 		}
 	}
@@ -96,25 +107,31 @@ AActor* AObjectPoolManager::GetPooledObject()
 	UE_LOG(LogTemp, Warning, TEXT("No available objects in the pool. Consider increasing the PoolSize."));
 	return nullptr;
 }
-
 void AObjectPoolManager::ReturnPooledObject(AActor* Actor)
 {
-	if (Actor && ObjectPool.Contains(Actor))
+	if (!Actor || !ObjectPool.Contains(Actor))
 	{
-		Actor->SetActorHiddenInGame(true);
-		Actor->SetActorEnableCollision(false);
-
-		// Supprimer le tag "Active" et ajouter "Inactive"
-		Actor->Tags.Remove(FName("Active"));
-		Actor->Tags.Add(FName("Inactive"));
-		UE_LOG(LogTemp, Log, TEXT("Object returned to the pool."));
-		GetWorld()->GetTimerManager().ClearAllTimersForObject(Actor);
+		return;
 	}
+
+	// Call StopMovement if it's a SoundSphere
+	ASoundSphere* SoundSphere = Cast<ASoundSphere>(Actor);
+	if (SoundSphere)
+	{
+		SoundSphere->StopMovement();
+	}
+
+	Actor->SetActorHiddenInGame(true);
+	Actor->SetActorEnableCollision(false);
+	Actor->Tags.Remove(FName("Active"));
+	Actor->Tags.Add(FName("Inactive"));
+
+	GetWorld()->GetTimerManager().ClearAllTimersForObject(Actor);
 }
 
 void AObjectPoolManager::AutoDeactivate(AActor* Actor)
 {
-	if (Actor && ObjectPool.Contains(Actor))
+	if (Actor && ObjectPool.Contains(Actor) && Actor->Tags.Contains(FName("Active")))
 	{
 		ReturnPooledObject(Actor);
 	}
