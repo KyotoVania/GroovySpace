@@ -27,7 +27,6 @@ ASoundSphere::ASoundSphere()
 void ASoundSphere::BeginPlay()
 {
 	Super::BeginPlay();
-//	GetWorld()->GetTimerManager().SetTimer(StopMovementTimerHandle, this, &ASoundSphere::StopMovement, 5.0f, false);
 }
 
 void ASoundSphere::Tick(float DeltaTime)

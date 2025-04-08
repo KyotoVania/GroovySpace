@@ -62,18 +62,6 @@ AActor* AObjectPoolManager::GetPooledObject()
 			// Update tags
 			Actor->Tags.Remove(FName("Inactive"));
 			Actor->Tags.Add(FName("Active"));
-
-			// Set deactivation timer
-			if (DeactivationDelay > 0.0f)
-			{
-				FTimerHandle DeactivationTimerHandle;
-				GetWorld()->GetTimerManager().SetTimer(
-					DeactivationTimerHandle,
-					FTimerDelegate::CreateUObject(this, &AObjectPoolManager::AutoDeactivate, Actor),
-					DeactivationDelay,
-					false
-				);
-			}
             
 			return Actor;
 		}
@@ -90,17 +78,6 @@ AActor* AObjectPoolManager::GetPooledObject()
 			NewActor->SetActorEnableCollision(true);
 			NewActor->Tags.Add(FName("Active")); // Ajouter un tag "Active"
 			ObjectPool.Add(NewActor);
-			// Planifier la désactivation automatique
-			if (DeactivationDelay > 0.0f)
-			{
-				FTimerHandle DeactivationTimerHandle;
-				GetWorld()->GetTimerManager().SetTimer(
-					DeactivationTimerHandle,
-					FTimerDelegate::CreateUObject(this, &AObjectPoolManager::AutoDeactivate, NewActor),
-					DeactivationDelay,
-					false // Pas de répétition
-				);
-			}
 			return NewActor;
 		}
 	}
@@ -126,7 +103,6 @@ void AObjectPoolManager::ReturnPooledObject(AActor* Actor)
 	Actor->Tags.Remove(FName("Active"));
 	Actor->Tags.Add(FName("Inactive"));
 
-	GetWorld()->GetTimerManager().ClearAllTimersForObject(Actor);
 }
 
 void AObjectPoolManager::AutoDeactivate(AActor* Actor)
