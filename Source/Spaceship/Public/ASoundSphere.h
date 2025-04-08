@@ -58,6 +58,11 @@ public:
 	void StopMovement();
 	UPROPERTY()
 	bool bIsActive = false;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SoundSphere")
+	FVector BoundaryMin = FVector(-500.0f, -500.0f, -500.0f);
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "SoundSphere")
+	FVector BoundaryMax = FVector(5000.0f, 500.0f, 500.0f);
 private:
 	FTimerHandle StopMovementTimerHandle;
 

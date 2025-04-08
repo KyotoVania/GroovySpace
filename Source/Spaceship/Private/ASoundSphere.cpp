@@ -36,13 +36,16 @@ void ASoundSphere::Tick(float DeltaTime)
 	// ✅ Appliquer le déplacement seulement si actif
 	if (Velocity != FVector::ZeroVector)
 	{
-		AddActorWorldOffset(Velocity * MoveSpeed * DeltaTime, true);
 
 		// Vérifier la position X
-		if (GetActorLocation().X > MaxXPosition)
+		if (!FBox(BoundaryMin, BoundaryMax).IsInside(GetActorLocation() + (Velocity * MoveSpeed * DeltaTime)))
 		{
+			// Si le projectile sort de la zone, on le stoppe
 			StopMovement();
+			return;
 		}
+		AddActorWorldOffset(Velocity * MoveSpeed * DeltaTime, true);
+
 	}
 }
 

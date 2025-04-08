@@ -33,6 +33,8 @@ void AVisualizerActor::BeginPlay()
 	if (SaveManager && SaveManager->CurrentSave)
 	{
 		// Set materials from SkinOptions based on saved skin ID
+		VisualizerSettings->VisualizerShape = SaveManager->CurrentSave->VisualizerShape;
+		VisualizerSettings->Difficulty = SaveManager->CurrentSave->Difficulty;
 		if (SkinOptions && SkinOptions->AvailableSkins.IsValidIndex(SaveManager->CurrentSave->ColorSkinID))
 		{
 			ColorMaterials = SkinOptions->AvailableSkins[SaveManager->CurrentSave->ColorSkinID].ProjectileMaterialSets;
@@ -150,8 +152,6 @@ void AVisualizerActor::InitializeVisualizer()
 	SpawnBars();
 	SpawnBoss();
 }
-
-
 
 void AVisualizerActor::SpawnBars()
 {
