@@ -10,16 +10,16 @@ ASpaceshipCharacter::ASpaceshipCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
 
-    // Create spaceship mesh
-    SpaceshipMesh = CreateDefaultSubobject<USkeletalMeshComponent>(TEXT("SpaceshipMesh"));
-    SpaceshipMesh->SetupAttachment(GetRootComponent());
+    
+    USkeletalMeshComponent* MeshRef = GetMesh();
+    if (!MeshRef) return;
 
     // Create spawn points
     ProjectileSpawnPointWhite = CreateDefaultSubobject<UArrowComponent>(TEXT("ProjectileSpawnWhite"));
-    ProjectileSpawnPointWhite->SetupAttachment(SpaceshipMesh);
+    ProjectileSpawnPointWhite->SetupAttachment(MeshRef);
 
     ProjectileSpawnPointBlack = CreateDefaultSubobject<UArrowComponent>(TEXT("ProjectileSpawnBlack"));
-    ProjectileSpawnPointBlack->SetupAttachment(SpaceshipMesh);
+    ProjectileSpawnPointBlack->SetupAttachment(MeshRef);
 
     // Configure character movement
     GetCharacterMovement()->bOrientRotationToMovement = false;
@@ -155,7 +155,7 @@ float ASpaceshipCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Da
 
 void ASpaceshipCharacter::UpdateMaterials()
 {
-    if (!SaveManager || !SaveManager->CurrentSave || !SpaceshipMesh || !SkinOptions) return;
+    if (!SaveManager || !SaveManager->CurrentSave || !SkinOptions) return;
 
     int32 SkinIndex = SaveManager->CurrentSave->ColorSkinID;
     if (!SkinOptions->AvailableSkins.IsValidIndex(SkinIndex)) return;
@@ -163,8 +163,11 @@ void ASpaceshipCharacter::UpdateMaterials()
     const FSkinOption& CurrentSkin = SkinOptions->AvailableSkins[SkinIndex];
     const FMaterialSet& Materials = CurrentSkin.GameplayMaterialSets;
 
-    for (int32 i = 0; i < SpaceshipMesh->GetNumMaterials(); i++)
+    USkeletalMeshComponent* MeshRef = GetMesh();
+    if (!MeshRef) return;
+
+    for (int32 i = 0; i < MeshRef->GetNumMaterials(); i++)
     {
-        SpaceshipMesh->SetMaterial(i, bIsWhiteMode ? Materials.WhiteMaterial : Materials.BlackMaterial);
+        MeshRef->SetMaterial(i, bIsWhiteMode ? Materials.WhiteMaterial : Materials.BlackMaterial);
     }
 }

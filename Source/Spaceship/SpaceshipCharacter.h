@@ -35,8 +35,6 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay")
     bool bIsWhiteMode = true;
 
-    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    USkeletalMeshComponent* SpaceshipMesh;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay")
     bool bIsInSpaceship = true;
