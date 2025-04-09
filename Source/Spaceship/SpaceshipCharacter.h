@@ -6,6 +6,7 @@
 #include "SpaceshipSaveManager.h"
 #include "Selector/SkinOptionsDataAsset.h"
 #include "AObjectPoolManager.h"
+#include "InputActionValue.h"
 #include "SpaceshipCharacter.generated.h"
 
 UCLASS()
@@ -20,21 +21,40 @@ public:
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
     virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 
+    // Input Action references
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+    class UInputAction* MoveAction;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+    class UInputAction* FireAction;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+    class UInputAction* SwitchModeAction;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+    class UInputAction* ExitShipAction;
+
+    // Input Mapping Context
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
+    class UInputMappingContext* DefaultMappingContext;
+
+    // Components
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class UArrowComponent* ProjectileSpawnPointWhite;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     class UArrowComponent* ProjectileSpawnPointBlack;
 
+    // Movement properties
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
     float ThrustForce = 1000.0f;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
     float MaxRollAngle = 45.0f;
 
+    // Gameplay properties
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay")
     bool bIsWhiteMode = true;
-
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay")
     bool bIsInSpaceship = true;
@@ -46,23 +66,32 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Gameplay")
     void ToggleColor();
 
-    UFUNCTION(BlueprintCallable, Category = "Movement")
-    void MoveForward(float Value);
-
-    UFUNCTION(BlueprintCallable, Category = "Movement")
-    void MoveRight(float Value);
-
     UFUNCTION(BlueprintCallable, Category = "Gameplay")
     void ToggleSpaceshipMode();
+    
+    UFUNCTION(BlueprintCallable, Category = "Gameplay")
+    void Enter(ACharacter* Character);
+    
+    UFUNCTION(BlueprintCallable, Category = "Gameplay")
+    void Exit();
 
 protected:
     virtual void BeginPlay() override;
+
+    // Input handlers
+    void Move(const FInputActionValue& Value);
+    void HandleFire(const FInputActionValue& Value);
+    void HandleSwitchMode(const FInputActionValue& Value);
+    void HandleExitShip(const FInputActionValue& Value);
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Customization")
     class USkinOptionsDataAsset* SkinOptions;
 
     UPROPERTY()
     USpaceshipSaveManager* SaveManager;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Character")
+    ACharacter* PlayerCharacter;
 
     UPROPERTY()
     class AObjectPoolManager* PoolManager;

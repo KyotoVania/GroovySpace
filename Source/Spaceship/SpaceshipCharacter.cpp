@@ -5,6 +5,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "ASoundSphere.h"
 #include "EngineUtils.h"
+#include "EnhancedInputComponent.h"
+#include "EnhancedInputSubsystems.h"
 
 ASpaceshipCharacter::ASpaceshipCharacter()
 {
@@ -57,25 +59,64 @@ void ASpaceshipCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-    PlayerInputComponent->BindAxis("MoveForward", this, &ASpaceshipCharacter::MoveForward);
-    PlayerInputComponent->BindAxis("MoveRight", this, &ASpaceshipCharacter::MoveRight);
-}
-
-void ASpaceshipCharacter::MoveForward(float Value)
-{
-    if (bIsInSpaceship && !FMath::IsNearlyZero(Value))
+    // Get the player controller
+    APlayerController* PC = Cast<APlayerController>(GetController());
+    if (PC)
     {
-        AddMovementInput(GetActorForwardVector(), Value * ThrustForce);
+        // Get the local player enhanced input subsystem
+        UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer());
+        if (Subsystem)
+        {
+            // Add the mapping context
+            Subsystem->AddMappingContext(DefaultMappingContext, 0);
+        }
+    }
+
+    // Cast to enhanced input component
+    UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(PlayerInputComponent);
+    if (EnhancedInputComponent)
+    {
+        // Bind the actions
+        EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ASpaceshipCharacter::Move);
+        EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Triggered, this, &ASpaceshipCharacter::HandleFire);
+        EnhancedInputComponent->BindAction(SwitchModeAction, ETriggerEvent::Triggered, this, &ASpaceshipCharacter::HandleSwitchMode);
+        EnhancedInputComponent->BindAction(ExitShipAction, ETriggerEvent::Triggered, this, &ASpaceshipCharacter::HandleExitShip);
+    }
+}
+void ASpaceshipCharacter::Move(const FInputActionValue& Value)
+{
+    if (!bIsInSpaceship) return;
+
+    // Get the input vector
+    FVector2D MovementVector = Value.Get<FVector2D>();
+
+    // Handle forward/backward movement
+    if (!FMath::IsNearlyZero(MovementVector.X))
+    {
+        AddMovementInput(GetActorForwardVector(), MovementVector.X * ThrustForce);
+    }
+
+    // Handle right/left movement
+    if (!FMath::IsNearlyZero(MovementVector.Y))
+    {
+        AddMovementInput(GetActorRightVector(), MovementVector.Y);
+        UpdateRotation(MovementVector.Y, 0.0f);
     }
 }
 
-void ASpaceshipCharacter::MoveRight(float Value)
+void ASpaceshipCharacter::HandleFire(const FInputActionValue& Value)
 {
-    if (bIsInSpaceship && !FMath::IsNearlyZero(Value))
-    {
-        AddMovementInput(GetActorRightVector(), Value);
-        UpdateRotation(Value, 0.0f);
-    }
+    FireProjectile();
+}
+
+void ASpaceshipCharacter::HandleSwitchMode(const FInputActionValue& Value)
+{
+    ToggleColor();
+}
+
+void ASpaceshipCharacter::HandleExitShip(const FInputActionValue& Value)
+{
+    ToggleSpaceshipMode();
 }
 
 void ASpaceshipCharacter::UpdateRotation(float RollInput, float PitchInput)
@@ -170,4 +211,46 @@ void ASpaceshipCharacter::UpdateMaterials()
     {
         MeshRef->SetMaterial(i, bIsWhiteMode ? Materials.WhiteMaterial : Materials.BlackMaterial);
     }
+}
+
+void ASpaceshipCharacter::Enter(ACharacter* Character)
+{
+    if (!Character) return;
+
+    // Store the reference to the character
+    PlayerCharacter = Character;
+
+    // Get the controller of the character
+    AController* ControllerRef = Character->GetController();
+    if (ControllerRef)
+    {
+        // Possess the spaceship
+        ControllerRef->Possess(this);
+    }
+
+    // Hide the character
+    Character->SetActorHiddenInGame(true);
+    Character->SetActorEnableCollision(false);
+    Character->SetActorTickEnabled(false);
+}
+
+void ASpaceshipCharacter::Exit()
+{
+    if (!PlayerCharacter) return;
+
+    // Get the controller of the spaceship
+    AController* ControllerRef = GetController();
+    if (ControllerRef)
+    {
+        // Possess the original character
+        ControllerRef->Possess(PlayerCharacter);
+    }
+
+    // Unhide the character
+    PlayerCharacter->SetActorHiddenInGame(false);
+    PlayerCharacter->SetActorEnableCollision(true);
+    PlayerCharacter->SetActorTickEnabled(true);
+
+    // Clear the reference
+    PlayerCharacter = nullptr;
 }
