@@ -14,6 +14,7 @@
 #include "GameFramework/PlayerController.h"
 #include "Camera/CameraShakeBase.h"
 #include "Particles/ParticleSystemComponent.h"
+#include "FVFXOption.h"
 #include "Sound/SoundBase.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "TimerManager.h"
@@ -71,8 +72,7 @@ ASpaceshipCharacter::ASpaceshipCharacter()
     RightThrusterVFX->SetupAttachment(GetMesh()); // Ou attachez à un socket spécifique si nécessaire
     RightThrusterVFX->bAutoActivate = false;
 
-    // Initialisation de l'intensité
-    ThrusterIntensity = 0.0f;
+  
     // --- Default Values ---
     bUseControllerRotationYaw = false; // Let the movement component handle yaw rotation based on controller
     bUseControllerRotationPitch = false;
@@ -131,9 +131,8 @@ void ASpaceshipCharacter::Tick(float DeltaTime)
     if (bIsInSpaceship)
     {
         HandleSpaceshipMovement(DeltaTime);
+        UpdateThrusterParametersVisuals(DeltaTime); // <- APPELER LA MISE A JOUR DES VFX ICI
     }
-    // Note: Camera rotation smoothness is largely handled by the SpringArmComponent settings now.
-    // Additional manual smoothing could be added here if required.
 }
 
 void ASpaceshipCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -159,56 +158,35 @@ void ASpaceshipCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInput
         EnhancedInputComponent->BindAction(ExitShipAction, ETriggerEvent::Triggered, this, &ASpaceshipCharacter::HandleExitShip);
     }
 }
-
-// SpaceshipCharacter.cpp -> Move function
-
 void ASpaceshipCharacter::Move(const FInputActionValue& Value)
 {
     if (!bIsInSpaceship) return;
 
-    // 1. Get the raw 2D input vector
-    const FVector2D MovementVector = Value.Get<FVector2D>();
-    
-    // Utiliser la vitesse actuelle du Character pour une force plus dynamique
-    float ThrusterForce = FMath::Abs(MovementVector.Y) * 400.0f;
-    UpdateThrusterParameters(ThrusterForce);
+    // 1. Store the raw input vector
+    CurrentMovementInput = Value.Get<FVector2D>(); // <- STORE INPUT
 
-
-    // 2. Get base directions projected onto XY plane
-    const FVector ForwardDirection = GetActorForwardVector();
-    const FVector RightDirection = GetActorRightVector();
-    const FVector ForwardDirectionXY = FVector(ForwardDirection.X, ForwardDirection.Y, 0.0f).GetSafeNormal();
-    const FVector RightDirectionXY = FVector(RightDirection.X, RightDirection.Y, 0.0f).GetSafeNormal();
-
-    // 3. Calculate the combined desired world-space movement direction
-    //    MovementVector.Y controls forward/backward (along ForwardDirectionXY)
-    //    MovementVector.X controls right/left (along RightDirectionXY)
-    FVector DesiredMovementDirection =
-        (ForwardDirectionXY * MovementVector.Y) + (RightDirectionXY * MovementVector.X);
-
-    // 4. Normalize the final direction vector (if non-zero) to ensure consistent speed regardless of angle
-    //    The CharacterMovementComponent's MaxFlySpeed will handle the actual speed limit.
-    if (!DesiredMovementDirection.IsNearlyZero())
+    // --- Reste de la logique de mouvement (AddMovementInput, UpdateRotation) ---
+    // NE PLUS appeler UpdateThrusterParameters ici
+    if (!CurrentMovementInput.IsNearlyZero())
     {
-        DesiredMovementDirection.Normalize();
+        const FVector ForwardDirection = GetActorForwardVector();
+        const FVector RightDirection = GetActorRightVector();
+        const FVector ForwardDirectionXY = FVector(ForwardDirection.X, ForwardDirection.Y, 0.0f).GetSafeNormal();
+        const FVector RightDirectionXY = FVector(RightDirection.X, RightDirection.Y, 0.0f).GetSafeNormal();
+        FVector DesiredMovementDirection =
+            (ForwardDirectionXY * CurrentMovementInput.Y) + (RightDirectionXY * CurrentMovementInput.X);
 
-        // 5. Apply the combined movement input
-        //    We pass a scale of 1.0f because the direction is normalized,
-        //    and speed is controlled by CharacterMovementComponent properties (MaxFlySpeed, Acceleration).
-        //    Note: We are NOT multiplying by ThrustForce here anymore, assuming speed is handled by movement component settings.
-        //    If you want direct force application, you'd calculate the force magnitude based on input and apply it.
-        AddMovementInput(DesiredMovementDirection, 1.0f);
-    }
-
-    // 6. Handle visual roll separately, based only on the left/right input
-    if (!FMath::IsNearlyZero(MovementVector.X))
-    {
-        UpdateRotation(MovementVector.X, 0.0f); // Update visual roll
+        if (!DesiredMovementDirection.IsNearlyZero())
+        {
+            DesiredMovementDirection.Normalize();
+            AddMovementInput(DesiredMovementDirection, 1.0f);
+        }
+        UpdateRotation(CurrentMovementInput.X, -CurrentMovementInput.Y);
     }
     else
     {
-        // Optional: Smoothly return roll to 0 if no left/right input is given
-         UpdateRotation(0.0f, 0.0f);
+        UpdateRotation(0.0f, 0.0f);
+        CurrentMovementInput = FVector2D::ZeroVector; // Reset stored input if no input
     }
 }
 
@@ -256,13 +234,23 @@ void ASpaceshipCharacter::HandleExitShip(const FInputActionValue& Value)
 {
     ToggleSpaceshipMode();
 }
-
-// Update visual roll only
 void ASpaceshipCharacter::UpdateRotation(float RollInput, float PitchInput)
 {
+    const float DeltaTime = GetWorld()->GetDeltaSeconds();
+    const float InterpSpeed = 5.0f;  // Vitesse de transition pour les rotations
+
+    // Calcul des angles cibles
     float TargetRoll = RollInput * MaxRollAngle;
+    float TargetPitch = PitchInput * MaxPitchAngle;
+
+    // Obtenir la rotation actuelle
     FRotator NewRotation = GetActorRotation();
-    NewRotation.Roll = FMath::FInterpTo(NewRotation.Roll, TargetRoll, GetWorld()->GetDeltaSeconds(), 5.0f);
+
+    // Interpoler doucement vers les angles cibles
+    NewRotation.Roll = FMath::FInterpTo(NewRotation.Roll, TargetRoll, DeltaTime, InterpSpeed);
+    NewRotation.Pitch = FMath::FInterpTo(NewRotation.Pitch, TargetPitch, DeltaTime, InterpSpeed);
+
+    // Appliquer la nouvelle rotation
     SetActorRotation(NewRotation);
 }
 
@@ -280,6 +268,8 @@ void ASpaceshipCharacter::HandleSpaceshipMovement(float DeltaTime)
         MoveComp->AddForce(DragForce);
     }
 }
+
+
 void ASpaceshipCharacter::FireProjectile()
 {
     // Check if the Projectile Class is set
@@ -295,6 +285,7 @@ void ASpaceshipCharacter::FireProjectile()
     UWorld* const World = GetWorld();
     if (World)
     {
+        const FNiagaraEffectPair SelectedEffects = GetSelectedVFXPair();
         FActorSpawnParameters SpawnParams;
         SpawnParams.Owner = this;
         SpawnParams.Instigator = GetInstigator();
@@ -313,6 +304,8 @@ void ASpaceshipCharacter::FireProjectile()
 
         if (ProjectileWhite)
         {
+            ProjectileWhite->SetNiagaraEffects(SelectedEffects); // <-- Appel de la nouvelle fonction
+
             const FVector FixedWorldDirection = FVector(1.0f, 0.0f, 0.0f); // +X world
             if (UProjectileMovementComponent* MoveComp = ProjectileWhite->ProjectileMovement)
             {
@@ -335,6 +328,8 @@ void ASpaceshipCharacter::FireProjectile()
 
         if (ProjectileBlack)
         {
+            ProjectileBlack->SetNiagaraEffects(SelectedEffects); // <-- Appel de la nouvelle fonction
+
             const FVector FixedWorldDirection = FVector(1.0f, 0.0f, 0.0f); // +X world
             if (UProjectileMovementComponent* MoveComp = ProjectileBlack->ProjectileMovement)
             {
@@ -538,37 +533,148 @@ void ASpaceshipCharacter::Exit()
     bIsInSpaceship = false;
     PlayerCharacter = nullptr;
 }
-
-void ASpaceshipCharacter::UpdateThrusterParameters(float BaseForce)
+void ASpaceshipCharacter::UpdateThrusterParametersVisuals(float DeltaTime)
 {
-    // Utiliser une courbe exponentielle pour la force de base
-    // Cela donnera plus de nuances aux petits mouvements tout en permettant des effets dramatiques
-    float NormalizedForce = FMath::Pow(BaseForce, 2.0f) * 100.0f;
-    const float InterpSpeed = 5.0f;
-    
-    // Calculer les valeurs cibles
-    if (LeftThrusterVFX && RightThrusterVFX)
+    if (!LeftThrusterVFX || !RightThrusterVFX) return;
+
+    FVector CurrentVelocity = GetVelocity();
+    float CurrentSpeed = CurrentVelocity.Size();
+
+    UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+    float MaxSpeed = MoveComp ? MoveComp->MaxFlySpeed : 2400.0f;
+    float SpeedRatio = (MaxSpeed > 0) ? FMath::Clamp(CurrentSpeed / MaxSpeed, 0.0f, 1.0f) : 0.0f;
+
+    // --- Logique d'Activation/Désactivation ---
+    // Exemple: Activer si vitesse > 50 ou si input avant/arrière est donné
+    const float ActivationSpeedThreshold = 50.0f;
+    bool bShouldBeActive = (CurrentSpeed > ActivationSpeedThreshold) || !FMath::IsNearlyZero(CurrentMovementInput.Y);
+
+    if (!bShouldBeActive)
     {
-        for (UNiagaraComponent* Thruster : {LeftThrusterVFX, RightThrusterVFX})
+        if (LeftThrusterVFX->IsActive()) LeftThrusterVFX->Deactivate();
+        if (RightThrusterVFX->IsActive()) RightThrusterVFX->Deactivate();
+        return; // Sortir si les thrusters doivent être éteints
+    }
+    else
+    {
+        if (!LeftThrusterVFX->IsActive()) LeftThrusterVFX->Activate(true);
+        if (!RightThrusterVFX->IsActive()) RightThrusterVFX->Activate(true);
+    }
+
+    // Calcul de l'intensité de base en fonction de la vitesse
+    float BaseIntensity = SpeedRatio;
+    BaseIntensity = FMath::Clamp(BaseIntensity, 0.0f, 1.0f); // Garder entre 0 et 1
+
+    // --- NOUVELLE LOGIQUE: Ajustement pour mouvement avant/arrière ---
+    // Nous utilisons l'input Y pour ajuster l'intensité des propulseurs
+    // Input Y positif = avant, donc augmenter l'intensité des propulseurs
+    // Input Y négatif = arrière, donc diminuer l'intensité des propulseurs
+    float ForwardInput = CurrentMovementInput.Y;
+    
+    // Coefficient d'ajustement pour l'input avant/arrière (à régler selon préférence)
+    const float ForwardAdjustFactor = 0.7f;
+    
+    // Appliquer un ajustement à l'intensité de base en fonction de l'input avant/arrière
+    if (!FMath::IsNearlyZero(ForwardInput))
+    {
+        // Si on avance (Input Y > 0), augmenter l'intensité
+        if (ForwardInput > 0)
         {
-            if (BaseForce > 0.0f)
-            {
-                if (!Thruster->IsActive()) 
-                {
-                    Thruster->Activate(true);
-                }
-                
-                // Application directe des multiplicateurs comme en BP
-                Thruster->SetVariableFloat(ThrustersSpeedParam, BaseForce * THRUSTER_FORCE_MULTIPLIER);
-                Thruster->SetVariableFloat(ParticulateSpeedParam, BaseForce * PARTICULATE_FORCE_MULTIPLIER);
-                Thruster->SetVariableFloat(EnergyCoreSpeedParam, BaseForce * ENERGY_CORE_FORCE_MULTIPLIER);
-                Thruster->SetVariableFloat(HeatHazeSpeedParam, BaseForce * HEAT_HAZE_FORCE_MULTIPLIER);
-            }
-            else
-            {
-                Thruster->Deactivate();
-            }
+            // Plus on pousse vers l'avant, plus les propulseurs sont intenses
+            BaseIntensity *= (1.0f + (ForwardInput * ForwardAdjustFactor));
+        }
+        // Si on recule (Input Y < 0), diminuer l'intensité
+        else
+        {
+            // Plus on recule, moins les propulseurs sont intenses
+            BaseIntensity *= (1.0f - (FMath::Abs(ForwardInput) * ForwardAdjustFactor));
+        }
+    }
+
+    const float VISUAL_MULTIPLIER = 400.0f; // Ajustez cette valeur si nécessaire
+    float VisualIntensity = BaseIntensity * VISUAL_MULTIPLIER;
+
+    // --- Différenciation Gauche/Droite ---
+    FVector LocalVelocity = GetActorTransform().InverseTransformVectorNoScale(CurrentVelocity);
+    float SidewaysInput = CurrentMovementInput.X;
+
+    float LeftThrusterIntensity = VisualIntensity;
+    float RightThrusterIntensity = VisualIntensity;
+
+    // Ajuster en fonction du mouvement/input latéral
+    float TurnFactor = 0.5f; // Force de l'effet de différenciation
+    if (!FMath::IsNearlyZero(SidewaysInput))
+    {
+        // Si on tourne/strafe à droite (Input X > 0)
+        if (SidewaysInput > 0)
+        {
+            // Augmenter le gauche, diminuer le droit (pour tourner à droite visuellement)
+            LeftThrusterIntensity *= (1.0f + TurnFactor);
+            RightThrusterIntensity *= (1.0f - TurnFactor);
+        }
+        // Si on tourne/strafe à gauche (Input X < 0)
+        else
+        {
+            // Augmenter le droit, diminuer le gauche
+            RightThrusterIntensity *= (1.0f + TurnFactor);
+            LeftThrusterIntensity *= (1.0f - TurnFactor);
         }
     }
     
+    // Clamp pour éviter les valeurs négatives si TurnFactor est grand
+    LeftThrusterIntensity = FMath::Max(0.0f, LeftThrusterIntensity);
+    RightThrusterIntensity = FMath::Max(0.0f, RightThrusterIntensity);
+
+    // --- Application aux Paramètres Niagara ---
+    auto UpdateNiagaraParams = [&](UNiagaraComponent* Thruster, float Intensity)
+    {
+        // Appliquer les multiplicateurs spécifiques à chaque paramètre RELATIFS à l'intensité calculée
+        Thruster->SetVariableFloat(ThrustersSpeedParam, Intensity * THRUSTER_FORCE_MULTIPLIER);
+        Thruster->SetVariableFloat(ParticulateSpeedParam, Intensity * PARTICULATE_FORCE_MULTIPLIER);
+        Thruster->SetVariableFloat(EnergyCoreSpeedParam, Intensity * ENERGY_CORE_FORCE_MULTIPLIER);
+        Thruster->SetVariableFloat(HeatHazeSpeedParam, Intensity * HEAT_HAZE_FORCE_MULTIPLIER);
+    };
+
+    UpdateNiagaraParams(LeftThrusterVFX, LeftThrusterIntensity);
+    UpdateNiagaraParams(RightThrusterVFX, RightThrusterIntensity);
+}
+
+FNiagaraEffectPair ASpaceshipCharacter::GetSelectedVFXPair() const
+{
+    // 1. Vérifier SaveManager et CurrentSave
+    if (!SaveManager || !SaveManager->CurrentSave)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ASpaceshipCharacter::GetSelectedVFXPair - SaveManager ou CurrentSave invalide."));
+        return FNiagaraEffectPair(); // Retourne une paire vide
+    }
+
+    // 2. Lire l'ID sauvegardé (en utilisant ProjectileSkinID comme déterminé dans l'analyse)
+    const int32 SelectedVFXID = SaveManager->CurrentSave->ProjectileSkinID;
+
+    // 3. Vérifier le Data Asset VFXOptions
+    if (!VFXOptions)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ASpaceshipCharacter::GetSelectedVFXPair - VFXOptions Data Asset n'est pas assigné !"));
+        return FNiagaraEffectPair(); // Retourne une paire vide
+    }
+
+    // 4. Vérifier la validité de l'index dans le tableau AvailableVFX
+    if (!VFXOptions->AvailableVFX.IsValidIndex(SelectedVFXID))
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ASpaceshipCharacter::GetSelectedVFXPair - Index VFX sauvegardé (%d) invalide pour le Data Asset '%s'. Taille du tableau: %d"),
+               SelectedVFXID, *VFXOptions->GetName(), VFXOptions->AvailableVFX.Num());
+
+        // Fallback : Retourner la première paire si elle existe, sinon une paire vide
+        if (VFXOptions->AvailableVFX.IsValidIndex(0))
+        {
+            return VFXOptions->AvailableVFX[0].Effects;
+        }
+        else
+        {
+            return FNiagaraEffectPair();
+        }
+    }
+
+    // 5. Retourner la paire d'effets correspondante
+    return VFXOptions->AvailableVFX[SelectedVFXID].Effects;
 }

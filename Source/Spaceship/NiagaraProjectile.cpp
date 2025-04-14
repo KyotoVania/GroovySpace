@@ -129,16 +129,27 @@ void ANiagaraProjectile::SetColorMode(bool bNewIsWhite)
     // }
 }
 
-// Met à jour l'effet de projectile en vol
-void ANiagaraProjectile::SetNiagaraAsset(UNiagaraSystem* NewFX)
+void ANiagaraProjectile::SetNiagaraEffects(const FNiagaraEffectPair& NewEffects)
 {
-    NiagaraEffects.ProjectileFX = NewFX; // Met à jour dans la structure
+    NiagaraEffects = NewEffects;
+
+    // Important : Mettre à jour l'asset du composant si le projectile a déjà commencé (BeginPlay appelé)
+    // ou si on veut s'assurer qu'il est correct avant même BeginPlay.
     if (NiagaraComp)
     {
-        NiagaraComp->SetAsset(NewFX);
-        if (IsActorInitialized()) // Vérifier si BeginPlay a déjà été appelé
+        if (NiagaraEffects.ProjectileFX)
         {
-            NiagaraComp->Activate(true);
+            NiagaraComp->SetAsset(NiagaraEffects.ProjectileFX);
+            // Si BeginPlay a déjà été appelé, on pourrait avoir besoin de réactiver
+            // if (IsActorInitialized() && NiagaraComp->IsActive()) // Ou !NiagaraComp->IsActive() si on veut forcer activation
+            // {
+            //     NiagaraComp->Activate(true); // Reset=true peut être utile
+            // }
+        }
+        else
+        {
+            NiagaraComp->Deactivate();
+            NiagaraComp->SetAsset(nullptr); // Vider si l'effet est null
         }
     }
 }

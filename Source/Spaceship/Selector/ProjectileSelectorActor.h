@@ -2,84 +2,72 @@
 
 #include "CoreMinimal.h"
 #include "BaseSelectorActor.h"
-#include "NiagaraSystem.h"
-#include "Components/StaticMeshComponent.h"
-#include "Components/ArrowComponent.h"
+#include "Spaceship/FVFXOption.h" // Inclure notre nouvelle structure et DataAsset
 #include "NiagaraComponent.h"
-#include "Spaceship/SpaceshipSaveManager.h"
+#include "Components/TextRenderComponent.h"
 #include "ProjectileSelectorActor.generated.h"
 
-/**
- * Actor for selecting and previewing player projectile effects
- */
 UCLASS()
-class SPACESHIP_API AProjectileSelectorActor : public ABaseSelectorActor
+class SPACESHIP_API AVFXSelectorActor : public ABaseSelectorActor
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
 public:
-	AProjectileSelectorActor();
+    AVFXSelectorActor();
 
-	// Available projectile effects
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectiles")
-	TArray<UNiagaraSystem*> ProjectileEffects;
+    // Data Asset contenant toutes les options VFX disponibles
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VFX")
+    UVFXOptionsDataAsset* VFXOptions;
 
-	// Preview meshes for each projectile type
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectiles")
-	TArray<UStaticMesh*> ProjectilePreviewMeshes;
+    // Composants pour la prévisualisation (optionnel mais recommandé)
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components | Preview")
+    UNiagaraComponent* PreviewProjectileComp;
 
-	// Preview mesh component
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UStaticMeshComponent* PreviewMesh;
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components | Preview")
+    UNiagaraComponent* PreviewImpactComp; // Pourrait être activé sur un timer ou un event
 
-	// Preview effect component
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UNiagaraComponent* PreviewEffect;
+    // Texte affichant la sélection actuelle
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
+    UTextRenderComponent* SelectionText;
 
-	// Arrow to show direction
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UArrowComponent* DirectionArrow;
+    // --- Fonctions ---
 
-	// Selection text component
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-	UTextRenderComponent* SelectionText;
+    // Récupère l'option VFX actuellement sélectionnée
+    UFUNCTION(BlueprintCallable, Category = "VFX")
+    FVFXOption GetCurrentVFXOption() const;
 
-	// Get current projectile effect
-	UFUNCTION(BlueprintCallable, Category = "Projectiles")
-	UNiagaraSystem* GetCurrentProjectileEffect() const;
+    // Récupère la paire d'effets Niagara actuellement sélectionnée
+    UFUNCTION(BlueprintCallable, Category = "VFX")
+    FNiagaraEffectPair GetCurrentVFXPair() const;
 
-	// Get current preview mesh
-	UFUNCTION(BlueprintCallable, Category = "Projectiles")
-	UStaticMesh* GetCurrentPreviewMesh() const;
+    // Récupère l'ID (index) du VFX actuellement sélectionné
+    UFUNCTION(BlueprintCallable, Category = "VFX")
+    int32 GetCurrentVFXID() const;
 
-	// Get current projectile ID
-	UFUNCTION(BlueprintCallable, Category = "Projectiles")
-	int32 GetCurrentProjectileID() const;
+    // Sélectionne le prochain VFX
+    UFUNCTION(BlueprintCallable, Category = "Selection")
+    void NextVFX();
 
-	// Increment projectile selection
-	UFUNCTION(BlueprintCallable, Category = "Selection")
-	void NextProjectile();
+    // Sélectionne le VFX précédent
+    UFUNCTION(BlueprintCallable, Category = "Selection")
+    void PreviousVFX();
 
-	// Decrement projectile selection
-	UFUNCTION(BlueprintCallable, Category = "Selection")
-	void PreviousProjectile();
-
-	// Confirm selection
-	UFUNCTION(BlueprintCallable, Category = "Selection")
-	void ConfirmSelection();
+    // Confirme la sélection (sauvegarde)
+    UFUNCTION(BlueprintCallable, Category = "Selection")
+    void ConfirmSelection();
 
 protected:
-	virtual void BeginPlay() override;
-	
-	// Override UpdateUI to refresh the visual representation
-	virtual void UpdateUI() override;
-    
-	// Override input handlers
-	virtual void OnNextActionTriggered(const FInputActionValue& Value) override;
-	virtual void OnPreviousActionTriggered(const FInputActionValue& Value) override;
-	virtual void OnConfirmActionTriggered(const FInputActionValue& Value) override;
+    virtual void BeginPlay() override;
+
+    // Met à jour l'UI (texte, prévisualisation)
+    virtual void UpdateUI() override;
+
+    // Gère les inputs (hérités de BaseSelectorActor)
+    virtual void OnNextActionTriggered(const FInputActionValue& Value) override;
+    virtual void OnPreviousActionTriggered(const FInputActionValue& Value) override;
+    virtual void OnConfirmActionTriggered(const FInputActionValue& Value) override;
 
 private:
-	// Update the save file with current selection
-	void UpdateSaveData();
+    // Met à jour le fichier de sauvegarde
+    void UpdateSaveData();
 };

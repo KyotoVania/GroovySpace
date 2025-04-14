@@ -7,6 +7,9 @@
 #include "FMaterialSet.h"
 #include "SpaceshipSaveManager.h"
 #include "Selector/SkinOptionsDataAsset.h"
+// --- AJOUT ---
+#include "FVFXOption.h" // <-- Inclure pour UVFXOptionsDataAsset et FNiagaraEffectPair
+// --- FIN AJOUT ---
 #include "AObjectPoolManager.h"
 #include "InputActionValue.h"
 #include "NiagaraProjectile.h"
@@ -26,7 +29,7 @@
 UCLASS()
 class SPACESHIP_API ASpaceshipCharacter : public ACharacter
 {
-    GENERATED_BODY()
+	GENERATED_BODY()
 
 public:
     ASpaceshipCharacter();
@@ -111,9 +114,15 @@ public:
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
     UArrowComponent* ProjectileSpawnPointBlack;
-    
+
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Projectile")
     TSubclassOf<ANiagaraProjectile> ProjectileClass; // Une seule classe pour tous les tirs
+
+    // --- AJOUT : Référence au Data Asset des options VFX ---
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "VFX")
+    UVFXOptionsDataAsset* VFXOptions;
+    // --- FIN AJOUT ---
+
 
     // Movement properties
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
@@ -122,6 +131,8 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
     float MaxRollAngle = 45.0f;
 
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
+    float MaxPitchAngle = 25.0f;
     // Gameplay properties
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gameplay")
     bool bIsWhiteMode = true;
@@ -144,6 +155,12 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Gameplay")
     void Exit();
+
+    // --- AJOUT : Fonction pour récupérer la paire de VFX sélectionnée ---
+    UFUNCTION(BlueprintPure, Category = "VFX") // BlueprintPure car ne modifie rien
+    FNiagaraEffectPair GetSelectedVFXPair() const;
+    // --- FIN AJOUT ---
+
     //Thruster
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VFX")
     class UNiagaraComponent* LeftThrusterVFX;
@@ -154,15 +171,13 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VFX")
     class UNiagaraSystem* ThrusterEffect;
 
-    // Variable pour contrôler l'intensité des thrusters
-    UPROPERTY(BlueprintReadWrite, Category = "VFX")
-    float ThrusterIntensity;
 protected:
     virtual void BeginPlay() override;
     bool bCanToggleColor;
 
     // Handle pour le timer du cooldown
     FTimerHandle ColorToggleCooldownTimerHandle;
+    FVector2D CurrentMovementInput; // Stocker l'input actuel
 
     // Durée du cooldown (exposable en Blueprint pour ajustement facile)
     UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Gameplay|Cooldowns")
@@ -232,7 +247,6 @@ protected:
     UPROPERTY(BlueprintReadOnly, Category = "VFX")
     float HeatHazeSpeed;
 
-    // Méthode pour mettre à jour tous les paramètres
-    UFUNCTION(BlueprintCallable, Category = "VFX")
-    void UpdateThrusterParameters(float BaseForce);
+    void UpdateThrusterParametersVisuals(float DeltaTime); // Prend DeltaTime si besoin pour interpolation
+
 };

@@ -81,9 +81,8 @@ protected:
     void OnHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
 public:
+    UFUNCTION(BlueprintCallable, Category = "Effects") // BlueprintCallable si besoin depuis BP
+    void SetNiagaraEffects(const FNiagaraEffectPair& NewEffects);
     // Function for the Spawner (SpaceshipCharacter) to set the color mode
     void SetColorMode(bool bNewIsWhite);
-
-    // Optional: Function to set the actual NiagaraSystem asset dynamically if needed
-    void SetNiagaraAsset(UNiagaraSystem* NewFX);
 };
