@@ -10,6 +10,7 @@
 #include "AObjectPoolManager.h"
 #include "InputActionValue.h"
 #include "NiagaraProjectile.h"
+#include "NiagaraComponent.h"
 #include "Camera/CameraComponent.h" // Pour UCameraComponent
 #include "GameFramework/SpringArmComponent.h" // Pour USpringArmComponent (déjà inclus mais bon à vérifier)
 #include "InputMappingContext.h" // Pour UInputMappingContext
@@ -143,7 +144,19 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Gameplay")
     void Exit();
+    //Thruster
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VFX")
+    class UNiagaraComponent* LeftThrusterVFX;
 
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VFX")
+    class UNiagaraComponent* RightThrusterVFX;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VFX")
+    class UNiagaraSystem* ThrusterEffect;
+
+    // Variable pour contrôler l'intensité des thrusters
+    UPROPERTY(BlueprintReadWrite, Category = "VFX")
+    float ThrusterIntensity;
 protected:
     virtual void BeginPlay() override;
     bool bCanToggleColor;
@@ -199,4 +212,27 @@ protected:
     // Store dynamic material instance for hit effect
     UPROPERTY()
     class UMaterialInstanceDynamic* HitMID;
+    static constexpr float THRUSTER_FORCE_MULTIPLIER = 2.0f;
+    static constexpr float PARTICULATE_FORCE_MULTIPLIER = 1.0f;
+    static constexpr float ENERGY_CORE_FORCE_MULTIPLIER = 0.25f; // Division par 4
+    static constexpr float HEAT_HAZE_FORCE_MULTIPLIER = 1.5f;
+     FName ThrustersSpeedParam;
+      FName ParticulateSpeedParam ;
+      FName EnergyCoreSpeedParam;
+      FName HeatHazeSpeedParam ;
+    UPROPERTY(BlueprintReadOnly, Category = "VFX")
+    float ThrustersSpeed;
+
+    UPROPERTY(BlueprintReadOnly, Category = "VFX")
+    float ParticulateSpeed;
+
+    UPROPERTY(BlueprintReadOnly, Category = "VFX")
+    float EnergyCoreSpeed;
+
+    UPROPERTY(BlueprintReadOnly, Category = "VFX")
+    float HeatHazeSpeed;
+
+    // Méthode pour mettre à jour tous les paramètres
+    UFUNCTION(BlueprintCallable, Category = "VFX")
+    void UpdateThrusterParameters(float BaseForce);
 };

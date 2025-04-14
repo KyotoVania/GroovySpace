@@ -8,6 +8,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 // Required Includes for new features
+#include "NiagaraComponentPoolMethodEnum.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/PlayerController.h"
@@ -22,6 +23,10 @@
 ASpaceshipCharacter::ASpaceshipCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
+    ThrustersSpeedParam = FName(TEXT("Thrusters_Speed"));
+    ParticulateSpeedParam = FName(TEXT("Particulate_Speed"));
+    EnergyCoreSpeedParam = FName(TEXT("EnergyCore_Speed"));
+    HeatHazeSpeedParam = FName(TEXT("HeatHaze_Speed"));
 
     USkeletalMeshComponent* MeshRef = GetMesh();
     if (!MeshRef) return;
@@ -57,6 +62,17 @@ ASpaceshipCharacter::ASpaceshipCharacter()
     GetCharacterMovement()->MaxAcceleration = 4000.0f; // Exemple : Augmenter l'accélération
     GetCharacterMovement()->BrakingDecelerationFlying = 1000.0f; // Exemple : Décélération modérée
 
+    //Thrusters
+    LeftThrusterVFX = CreateDefaultSubobject<UNiagaraComponent>(TEXT("LeftThrusterVFX"));
+    LeftThrusterVFX->SetupAttachment(GetMesh()); // Ou attachez à un socket spécifique si nécessaire
+    LeftThrusterVFX->bAutoActivate = false;
+
+    RightThrusterVFX = CreateDefaultSubobject<UNiagaraComponent>(TEXT("RightThrusterVFX"));
+    RightThrusterVFX->SetupAttachment(GetMesh()); // Ou attachez à un socket spécifique si nécessaire
+    RightThrusterVFX->bAutoActivate = false;
+
+    // Initialisation de l'intensité
+    ThrusterIntensity = 0.0f;
     // --- Default Values ---
     bUseControllerRotationYaw = false; // Let the movement component handle yaw rotation based on controller
     bUseControllerRotationPitch = false;
@@ -89,7 +105,11 @@ void ASpaceshipCharacter::BeginPlay()
     }
 
     UpdateMaterials();
-
+    if (ThrusterEffect)
+    {
+        LeftThrusterVFX->SetAsset(ThrusterEffect);
+        RightThrusterVFX->SetAsset(ThrusterEffect);
+    }
     // --- Setup Hit Post Process Material ---
     if (HitPostProcessMaterial)
     {
@@ -148,6 +168,11 @@ void ASpaceshipCharacter::Move(const FInputActionValue& Value)
 
     // 1. Get the raw 2D input vector
     const FVector2D MovementVector = Value.Get<FVector2D>();
+    
+    // Utiliser la vitesse actuelle du Character pour une force plus dynamique
+    float ThrusterForce = FMath::Abs(MovementVector.Y) * 400.0f;
+    UpdateThrusterParameters(ThrusterForce);
+
 
     // 2. Get base directions projected onto XY plane
     const FVector ForwardDirection = GetActorForwardVector();
@@ -512,4 +537,38 @@ void ASpaceshipCharacter::Exit()
     SetActorTickEnabled(false);
     bIsInSpaceship = false;
     PlayerCharacter = nullptr;
+}
+
+void ASpaceshipCharacter::UpdateThrusterParameters(float BaseForce)
+{
+    // Utiliser une courbe exponentielle pour la force de base
+    // Cela donnera plus de nuances aux petits mouvements tout en permettant des effets dramatiques
+    float NormalizedForce = FMath::Pow(BaseForce, 2.0f) * 100.0f;
+    const float InterpSpeed = 5.0f;
+    
+    // Calculer les valeurs cibles
+    if (LeftThrusterVFX && RightThrusterVFX)
+    {
+        for (UNiagaraComponent* Thruster : {LeftThrusterVFX, RightThrusterVFX})
+        {
+            if (BaseForce > 0.0f)
+            {
+                if (!Thruster->IsActive()) 
+                {
+                    Thruster->Activate(true);
+                }
+                
+                // Application directe des multiplicateurs comme en BP
+                Thruster->SetVariableFloat(ThrustersSpeedParam, BaseForce * THRUSTER_FORCE_MULTIPLIER);
+                Thruster->SetVariableFloat(ParticulateSpeedParam, BaseForce * PARTICULATE_FORCE_MULTIPLIER);
+                Thruster->SetVariableFloat(EnergyCoreSpeedParam, BaseForce * ENERGY_CORE_FORCE_MULTIPLIER);
+                Thruster->SetVariableFloat(HeatHazeSpeedParam, BaseForce * HEAT_HAZE_FORCE_MULTIPLIER);
+            }
+            else
+            {
+                Thruster->Deactivate();
+            }
+        }
+    }
+    
 }
