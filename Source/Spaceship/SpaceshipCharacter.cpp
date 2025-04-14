@@ -7,43 +7,102 @@
 #include "EngineUtils.h"
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
+// Required Includes for new features
+#include "Camera/CameraComponent.h"
+#include "GameFramework/SpringArmComponent.h"
+#include "GameFramework/PlayerController.h"
+#include "Camera/CameraShakeBase.h"
+#include "Particles/ParticleSystemComponent.h"
+#include "Sound/SoundBase.h"
+#include "Materials/MaterialInstanceDynamic.h"
+#include "TimerManager.h"
+#include "GameFramework/ProjectileMovementComponent.h"
+
 
 ASpaceshipCharacter::ASpaceshipCharacter()
 {
     PrimaryActorTick.bCanEverTick = true;
 
-    
     USkeletalMeshComponent* MeshRef = GetMesh();
     if (!MeshRef) return;
 
-    // Create spawn points
+    // --- Camera Setup ---
+    // Create Spring Arm (Camera Boom)
+    SpringArmComp = CreateDefaultSubobject<USpringArmComponent>(TEXT("SpringArmComp"));
+    SpringArmComp->SetupAttachment(MeshRef); // Attach to mesh or RootComponent as needed
+    SpringArmComp->bUsePawnControlRotation = true; // Rotate arm based on controller
+    SpringArmComp->bInheritPitch = true;
+    SpringArmComp->bInheritYaw = true;
+    SpringArmComp->bInheritRoll = false; // Keep the camera upright relative to the boom
+
+    // Create Camera attached to Spring Arm
+    CameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("CameraComp"));
+    CameraComp->SetupAttachment(SpringArmComp, USpringArmComponent::SocketName); // Attach to end of boom
+    CameraComp->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
+
+    // --- Projectile Spawn Points ---
     ProjectileSpawnPointWhite = CreateDefaultSubobject<UArrowComponent>(TEXT("ProjectileSpawnWhite"));
     ProjectileSpawnPointWhite->SetupAttachment(MeshRef);
 
     ProjectileSpawnPointBlack = CreateDefaultSubobject<UArrowComponent>(TEXT("ProjectileSpawnBlack"));
     ProjectileSpawnPointBlack->SetupAttachment(MeshRef);
 
-    // Configure character movement
-    GetCharacterMovement()->bOrientRotationToMovement = false;
-    GetCharacterMovement()->bUseControllerDesiredRotation = false;
+    // --- Character Movement Configuration ---
+    GetCharacterMovement()->bOrientRotationToMovement = false; // Character rotation is controlled by input/camera
+    GetCharacterMovement()->bUseControllerDesiredRotation = true; // Character rotates towards control rotation
+    GetCharacterMovement()->RotationRate = FRotator(0.f, 360.f, 0.f); // Adjust rotation speed as needed
     GetCharacterMovement()->DefaultLandMovementMode = MOVE_Flying;
-    GetCharacterMovement()->MaxFlySpeed = 1000.0f;
+    GetCharacterMovement()->MaxFlySpeed = 2400.0f;
+    GetCharacterMovement()->GravityScale = 0.0f; 
+    GetCharacterMovement()->MaxAcceleration = 4000.0f; // Exemple : Augmenter l'accélération
+    GetCharacterMovement()->BrakingDecelerationFlying = 1000.0f; // Exemple : Décélération modérée
+
+    // --- Default Values ---
+    bUseControllerRotationYaw = false; // Let the movement component handle yaw rotation based on controller
+    bUseControllerRotationPitch = false;
+    bUseControllerRotationRoll = false;
+    bCanToggleColor = true;
+
+    HitMID = nullptr; // Initialize dynamic material instance
 }
 
 void ASpaceshipCharacter::BeginPlay()
 {
     Super::BeginPlay();
-    
+
+    // --- Update Camera Boom Settings ---
+    if (SpringArmComp)
+    {
+        SpringArmComp->TargetArmLength = CameraBoomLength;
+        SpringArmComp->bEnableCameraLag = bEnableCameraLag;
+        SpringArmComp->CameraLagSpeed = CameraLagSpeed;
+        SpringArmComp->bEnableCameraRotationLag = bEnableCameraRotationLag;
+        SpringArmComp->CameraRotationLagSpeed = CameraRotationLagSpeed;
+    }
+
     SaveManager = USpaceshipSaveManager::GetSaveManager(GetWorld());
-    
+
     for (TActorIterator<AObjectPoolManager> It(GetWorld()); It; ++It)
     {
         PoolManager = *It;
         break;
     }
-    
+
     UpdateMaterials();
+
+    // --- Setup Hit Post Process Material ---
+    if (HitPostProcessMaterial)
+    {
+        HitMID = UMaterialInstanceDynamic::Create(HitPostProcessMaterial, this);
+        if (CameraComp) // Apply to our camera initially (but don't enable blend yet)
+        {
+             // Ensure the MID is added but weight is 0 initially.
+             // We'll control blend weight in HandleHit.
+            CameraComp->PostProcessSettings.AddBlendable(HitMID, 0.0f);
+        }
+    }
 }
+
 
 void ASpaceshipCharacter::Tick(float DeltaTime)
 {
@@ -53,54 +112,78 @@ void ASpaceshipCharacter::Tick(float DeltaTime)
     {
         HandleSpaceshipMovement(DeltaTime);
     }
+    // Note: Camera rotation smoothness is largely handled by the SpringArmComponent settings now.
+    // Additional manual smoothing could be added here if required.
 }
 
 void ASpaceshipCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
 
-    // Get the player controller
     APlayerController* PC = Cast<APlayerController>(GetController());
     if (PC)
     {
-        // Get the local player enhanced input subsystem
         UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PC->GetLocalPlayer());
         if (Subsystem)
         {
-            // Add the mapping context
             Subsystem->AddMappingContext(DefaultMappingContext, 0);
         }
     }
 
-    // Cast to enhanced input component
     UEnhancedInputComponent* EnhancedInputComponent = CastChecked<UEnhancedInputComponent>(PlayerInputComponent);
     if (EnhancedInputComponent)
     {
-        // Bind the actions
         EnhancedInputComponent->BindAction(MoveAction, ETriggerEvent::Triggered, this, &ASpaceshipCharacter::Move);
         EnhancedInputComponent->BindAction(FireAction, ETriggerEvent::Triggered, this, &ASpaceshipCharacter::HandleFire);
         EnhancedInputComponent->BindAction(SwitchModeAction, ETriggerEvent::Triggered, this, &ASpaceshipCharacter::HandleSwitchMode);
         EnhancedInputComponent->BindAction(ExitShipAction, ETriggerEvent::Triggered, this, &ASpaceshipCharacter::HandleExitShip);
     }
 }
+
+// SpaceshipCharacter.cpp -> Move function
+
 void ASpaceshipCharacter::Move(const FInputActionValue& Value)
 {
     if (!bIsInSpaceship) return;
 
-    // Get the input vector
-    FVector2D MovementVector = Value.Get<FVector2D>();
+    // 1. Get the raw 2D input vector
+    const FVector2D MovementVector = Value.Get<FVector2D>();
 
-    // Handle forward/backward movement
-    if (!FMath::IsNearlyZero(MovementVector.X))
+    // 2. Get base directions projected onto XY plane
+    const FVector ForwardDirection = GetActorForwardVector();
+    const FVector RightDirection = GetActorRightVector();
+    const FVector ForwardDirectionXY = FVector(ForwardDirection.X, ForwardDirection.Y, 0.0f).GetSafeNormal();
+    const FVector RightDirectionXY = FVector(RightDirection.X, RightDirection.Y, 0.0f).GetSafeNormal();
+
+    // 3. Calculate the combined desired world-space movement direction
+    //    MovementVector.Y controls forward/backward (along ForwardDirectionXY)
+    //    MovementVector.X controls right/left (along RightDirectionXY)
+    FVector DesiredMovementDirection =
+        (ForwardDirectionXY * MovementVector.Y) + (RightDirectionXY * MovementVector.X);
+
+    // 4. Normalize the final direction vector (if non-zero) to ensure consistent speed regardless of angle
+    //    The CharacterMovementComponent's MaxFlySpeed will handle the actual speed limit.
+    if (!DesiredMovementDirection.IsNearlyZero())
     {
-        AddMovementInput(GetActorForwardVector(), MovementVector.X * ThrustForce);
+        DesiredMovementDirection.Normalize();
+
+        // 5. Apply the combined movement input
+        //    We pass a scale of 1.0f because the direction is normalized,
+        //    and speed is controlled by CharacterMovementComponent properties (MaxFlySpeed, Acceleration).
+        //    Note: We are NOT multiplying by ThrustForce here anymore, assuming speed is handled by movement component settings.
+        //    If you want direct force application, you'd calculate the force magnitude based on input and apply it.
+        AddMovementInput(DesiredMovementDirection, 1.0f);
     }
 
-    // Handle right/left movement
-    if (!FMath::IsNearlyZero(MovementVector.Y))
+    // 6. Handle visual roll separately, based only on the left/right input
+    if (!FMath::IsNearlyZero(MovementVector.X))
     {
-        AddMovementInput(GetActorRightVector(), MovementVector.Y);
-        UpdateRotation(MovementVector.Y, 0.0f);
+        UpdateRotation(MovementVector.X, 0.0f); // Update visual roll
+    }
+    else
+    {
+        // Optional: Smoothly return roll to 0 if no left/right input is given
+         UpdateRotation(0.0f, 0.0f);
     }
 }
 
@@ -111,14 +194,45 @@ void ASpaceshipCharacter::HandleFire(const FInputActionValue& Value)
 
 void ASpaceshipCharacter::HandleSwitchMode(const FInputActionValue& Value)
 {
-    ToggleColor();
+    // 1. Vérifier si le changement est autorisé (pas en cooldown)
+    if (!bCanToggleColor)
+    {
+        // Si on est en cooldown, ne rien faire
+        return;
+    }
+
+    // 2. Si autorisé, exécuter le changement de couleur
+    ToggleColor(); // Appelle votre fonction existante
+
+    // 3. Démarrer le cooldown
+    bCanToggleColor = false; // Interdire le changement immédiatement
+    // Démarrer un timer qui appellera ResetColorToggleCooldown après la durée spécifiée
+    GetWorldTimerManager().SetTimer(
+        ColorToggleCooldownTimerHandle,    // Le handle à utiliser
+        this,                              // L'objet sur lequel appeler la fonction
+        &ASpaceshipCharacter::ResetColorToggleCooldown, // La fonction à appeler
+        ColorToggleCooldownDuration,       // Le délai avant d'appeler la fonction
+        false                              // Ne pas faire répéter le timer (false)
+    );
 }
+
+
+void ASpaceshipCharacter::ResetColorToggleCooldown()
+{
+    bCanToggleColor = true; // Réautoriser le changement de couleur
+
+    // Optionnel : Vous pouvez "nettoyer" le handle si vous voulez, mais ce n'est pas
+    // obligatoire pour un timer non répétitif qui a déjà expiré.
+    // GetWorldTimerManager().ClearTimer(ColorToggleCooldownTimerHandle);
+}
+
 
 void ASpaceshipCharacter::HandleExitShip(const FInputActionValue& Value)
 {
     ToggleSpaceshipMode();
 }
 
+// Update visual roll only
 void ASpaceshipCharacter::UpdateRotation(float RollInput, float PitchInput)
 {
     float TargetRoll = RollInput * MaxRollAngle;
@@ -129,35 +243,87 @@ void ASpaceshipCharacter::UpdateRotation(float RollInput, float PitchInput)
 
 void ASpaceshipCharacter::HandleSpaceshipMovement(float DeltaTime)
 {
-    // Additional spaceship-specific movement logic can be added here
-    // Such as momentum, drag, etc.
+    // Add damping/drag if needed
+    UCharacterMovementComponent* MoveComp = GetCharacterMovement();
+    if (MoveComp && MoveComp->IsFlying()) // Only apply drag while flying
+    {
+        // Dans HandleSpaceshipMovement
+        FVector CurrentVelocity = MoveComp->Velocity;
+        float SpeedSquared = CurrentVelocity.SizeSquared();
+        float DragCoefficient = 0.001f; // Ajuster cette valeur !
+        FVector DragForce = -CurrentVelocity.GetSafeNormal() * SpeedSquared * DragCoefficient;
+        MoveComp->AddForce(DragForce);
+    }
 }
-
 void ASpaceshipCharacter::FireProjectile()
 {
-    if (!bCanFire || !PoolManager || !SkinOptions) return;
+    // Check if the Projectile Class is set
+    if (!ProjectileClass)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ProjectileClass is not set in SpaceshipCharacter!"));
+        return;
+    }
 
-    UArrowComponent* SpawnPoint = bIsWhiteMode ? ProjectileSpawnPointWhite : ProjectileSpawnPointBlack;
-    if (!SpawnPoint) return;
+    // Ensure both spawn points are valid
+    if (!ProjectileSpawnPointWhite || !ProjectileSpawnPointBlack) return;
 
-    ASoundSphere* Projectile = Cast<ASoundSphere>(PoolManager->GetPooledObject());
-    if (!Projectile) return;
+    UWorld* const World = GetWorld();
+    if (World)
+    {
+        FActorSpawnParameters SpawnParams;
+        SpawnParams.Owner = this;
+        SpawnParams.Instigator = GetInstigator();
+        SpawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-    int32 SkinIndex = SaveManager->CurrentSave->ColorSkinID;
-    if (!SkinOptions->AvailableSkins.IsValidIndex(SkinIndex)) return;
+        // Spawn projectile from the white spawn point
+        FVector SpawnLocationWhite = ProjectileSpawnPointWhite->GetComponentLocation();
+        FRotator SpawnRotationWhite = FRotator::ZeroRotator;
 
-    const FSkinOption& CurrentSkin = SkinOptions->AvailableSkins[SkinIndex];
-    const FMaterialSet& Materials = CurrentSkin.ProjectileMaterialSets;
+        ANiagaraProjectile* ProjectileWhite = World->SpawnActor<ANiagaraProjectile>(
+            ProjectileClass,
+            SpawnLocationWhite,
+            SpawnRotationWhite,
+            SpawnParams
+        );
 
-    Projectile->SetActorLocation(SpawnPoint->GetComponentLocation());
-    Projectile->SetDirection(SpawnPoint->GetForwardVector());
-    Projectile->SetColor(bIsWhiteMode);
-    Projectile->SetMaterialColor(bIsWhiteMode ? Materials.WhiteMaterial : Materials.BlackMaterial);
+        if (ProjectileWhite)
+        {
+            const FVector FixedWorldDirection = FVector(1.0f, 0.0f, 0.0f); // +X world
+            if (UProjectileMovementComponent* MoveComp = ProjectileWhite->ProjectileMovement)
+            {
+                MoveComp->Velocity = FixedWorldDirection * MoveComp->InitialSpeed;
+                MoveComp->InitialSpeed = ProjectileWhite->InitialSpeed;
+                MoveComp->MaxSpeed = ProjectileWhite->MaxSpeed;
+            }
+        }
 
-    bCanFire = false;
-    GetWorld()->GetTimerManager().SetTimer(FireCooldownTimer, [this]() { bCanFire = true; }, FireCooldown, false);
+        // Spawn projectile from the black spawn point
+        FVector SpawnLocationBlack = ProjectileSpawnPointBlack->GetComponentLocation();
+        FRotator SpawnRotationBlack = FRotator::ZeroRotator;
+
+        ANiagaraProjectile* ProjectileBlack = World->SpawnActor<ANiagaraProjectile>(
+            ProjectileClass,
+            SpawnLocationBlack,
+            SpawnRotationBlack,
+            SpawnParams
+        );
+
+        if (ProjectileBlack)
+        {
+            const FVector FixedWorldDirection = FVector(1.0f, 0.0f, 0.0f); // +X world
+            if (UProjectileMovementComponent* MoveComp = ProjectileBlack->ProjectileMovement)
+            {
+                MoveComp->Velocity = FixedWorldDirection * MoveComp->InitialSpeed;
+                MoveComp->InitialSpeed = ProjectileBlack->InitialSpeed;
+                MoveComp->MaxSpeed = ProjectileBlack->MaxSpeed;
+            }
+        }
+
+        // Start Fire Cooldown
+        bCanFire = false;
+        World->GetTimerManager().SetTimer(FireCooldownTimer, [this]() { bCanFire = true; }, FireCooldown, false);
+    }
 }
-
 void ASpaceshipCharacter::ToggleColor()
 {
     bIsWhiteMode = !bIsWhiteMode;
@@ -167,32 +333,118 @@ void ASpaceshipCharacter::ToggleColor()
 void ASpaceshipCharacter::ToggleSpaceshipMode()
 {
     bIsInSpaceship = !bIsInSpaceship;
-    
-    // Update movement component settings
+
     UCharacterMovementComponent* Movement = GetCharacterMovement();
     if (Movement)
     {
-        if (bIsInSpaceship)
-        {
-            Movement->SetMovementMode(MOVE_Flying);
-        }
-        else
-        {
-            Movement->SetMovementMode(MOVE_Walking);
-        }
+        Movement->SetMovementMode(bIsInSpaceship ? MOVE_Flying : MOVE_Walking);
+        // Reset velocity when switching modes?
+        // Movement->Velocity = FVector::ZeroVector;
+    }
+
+    // Potentially enable/disable camera boom lag or change length
+    if (SpringArmComp)
+    {
+        // Example: Disable lag when not in spaceship
+        // SpringArmComp->bEnableCameraLag = bIsInSpaceship && bEnableCameraLag;
     }
 }
 
 float ASpaceshipCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
+    // --- Color Matching Check ---
     ASoundSphere* Projectile = Cast<ASoundSphere>(DamageCauser);
     if (Projectile && Projectile->GetColor() == bIsWhiteMode)
     {
         return 0.0f; // Ignore damage if colors match
     }
 
-    return Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+    // --- Apply Actual Damage ---
+    const float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+    // --- Trigger Hit Effects if Damage Was Taken ---
+    if (ActualDamage > 0.0f)
+    {
+        HandleHit(ActualDamage, DamageEvent, DamageCauser);
+    }
+
+    return ActualDamage;
 }
+
+void ASpaceshipCharacter::HandleHit(float DamageAmount, FDamageEvent const& DamageEvent, AActor* DamageCauser)
+{
+    APlayerController* PC = Cast<APlayerController>(GetController());
+    if (!PC) return;
+
+    // 1. Camera Shake
+    if (HitCameraShakeClass)
+    {
+        // Scale shake based on damage (optional, simple linear scale example)
+        float ShakeScale = FMath::GetMappedRangeValueClamped(FVector2D(1.0f, 50.0f), FVector2D(0.5f, 2.0f), DamageAmount);
+        PC->ClientStartCameraShake(HitCameraShakeClass, ShakeScale);
+    }
+
+    // 2. Post-Process Effect
+    if (HitMID) // Check if dynamic material instance exists
+    {
+        // Scale intensity based on damage (optional)
+        float EffectIntensity = FMath::GetMappedRangeValueClamped(FVector2D(1.0f, 50.0f), FVector2D(0.5f, 1.0f), DamageAmount);
+        TriggerHitPostProcess(EffectIntensity);
+    }
+
+    // 3. Particle Effect
+    if (HitParticleEffect)
+    {
+        // Spawn attached to the mesh or at a specific location
+        UGameplayStatics::SpawnEmitterAttached(
+            HitParticleEffect,
+            GetMesh(), // Attach to the skeletal mesh
+            NAME_None, // Optional socket name
+            GetActorLocation(), // Use actor location as fallback/offset base
+            GetActorRotation(),
+            EAttachLocation::KeepWorldPosition, // Or SnapToTarget
+            true // Auto destroy
+        );
+        // Alternatively, spawn at the impact point if available from DamageEvent
+        // FVector ImpactLocation = GetActorLocation(); // Default
+        // FPointDamageEvent* PointDamageEvent = (FPointDamageEvent*)(&DamageEvent);
+        // if (PointDamageEvent) { ImpactLocation = PointDamageEvent->HitInfo.ImpactPoint; }
+        // UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), HitParticleEffect, ImpactLocation, GetActorRotation());
+    }
+
+    // 4. Sound Effect
+    if (HitSound)
+    {
+        UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation());
+    }
+}
+
+void ASpaceshipCharacter::TriggerHitPostProcess(float Intensity)
+{
+    if (HitMID && CameraComp)
+    {
+        // Set the intensity parameter (if the parameter name is valid)
+        HitMID->SetScalarParameterValue(HitEffectIntensityParamName, Intensity);
+
+        // Set blend weight to 1 to activate the effect
+        CameraComp->PostProcessSettings.AddBlendable(HitMID, Intensity);
+
+
+        // Set a timer to clear the effect
+        GetWorldTimerManager().SetTimer(HitEffectTimerHandle, this, &ASpaceshipCharacter::ClearHitPostProcess, HitEffectDuration, false);
+    }
+}
+
+void ASpaceshipCharacter::ClearHitPostProcess()
+{
+     if (HitMID && CameraComp)
+    {
+         // Reset blend weight to 0 to deactivate
+         CameraComp->PostProcessSettings.RemoveBlendable(HitMID);
+    }
+     GetWorldTimerManager().ClearTimer(HitEffectTimerHandle);
+}
+
 
 void ASpaceshipCharacter::UpdateMaterials()
 {
@@ -207,50 +459,57 @@ void ASpaceshipCharacter::UpdateMaterials()
     USkeletalMeshComponent* MeshRef = GetMesh();
     if (!MeshRef) return;
 
-    for (int32 i = 0; i < MeshRef->GetNumMaterials(); i++)
+    UMaterialInterface* TargetMaterial = bIsWhiteMode ? Materials.WhiteMaterial : Materials.BlackMaterial;
+    if (TargetMaterial)
     {
-        MeshRef->SetMaterial(i, bIsWhiteMode ? Materials.WhiteMaterial : Materials.BlackMaterial);
+        // Assuming the main material is at index 0, adjust if needed
+        MeshRef->SetMaterial(0, TargetMaterial);
     }
+
+    // Update any other material slots if necessary
+    // for (int32 i = 0; i < MeshRef->GetNumMaterials(); i++)
+    // {
+    //     MeshRef->SetMaterial(i, TargetMaterial);
+    // }
 }
+
 
 void ASpaceshipCharacter::Enter(ACharacter* Character)
 {
     if (!Character) return;
 
-    // Store the reference to the character
     PlayerCharacter = Character;
-
-    // Get the controller of the character
     AController* ControllerRef = Character->GetController();
     if (ControllerRef)
     {
-        // Possess the spaceship
         ControllerRef->Possess(this);
     }
 
-    // Hide the character
     Character->SetActorHiddenInGame(true);
     Character->SetActorEnableCollision(false);
     Character->SetActorTickEnabled(false);
+
+    // Enable tick for spaceship
+     SetActorTickEnabled(true);
+     bIsInSpaceship = true;
 }
 
 void ASpaceshipCharacter::Exit()
 {
     if (!PlayerCharacter) return;
 
-    // Get the controller of the spaceship
     AController* ControllerRef = GetController();
     if (ControllerRef)
     {
-        // Possess the original character
         ControllerRef->Possess(PlayerCharacter);
     }
 
-    // Unhide the character
     PlayerCharacter->SetActorHiddenInGame(false);
     PlayerCharacter->SetActorEnableCollision(true);
     PlayerCharacter->SetActorTickEnabled(true);
 
-    // Clear the reference
+    // Disable tick for spaceship
+    SetActorTickEnabled(false);
+    bIsInSpaceship = false;
     PlayerCharacter = nullptr;
 }

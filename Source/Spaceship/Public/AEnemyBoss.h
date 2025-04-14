@@ -27,8 +27,9 @@ public:
 
 	// Fonction appelée lorsqu’il subit des dégâts
 	UFUNCTION(BlueprintCallable, Category = "Boss")
-	void TakeDamage(float Damage);
+	float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser);
 
+	void HandleDeath();
 	// Fonction pour vérifier s’il est détruit
 	UFUNCTION(BlueprintCallable, Category = "Boss")
 	bool IsDestroyed() const;
@@ -42,6 +43,9 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	void OnBossHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
+	               FVector NormalImpulse,
+	               const FHitResult& Hit);
 
 	UPROPERTY()
 	class AScoreManager* ScoreManager;

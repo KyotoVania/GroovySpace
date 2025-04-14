@@ -2,11 +2,24 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+// Required Includes for new features
+#include "GameFramework/SpringArmComponent.h"
 #include "FMaterialSet.h"
 #include "SpaceshipSaveManager.h"
 #include "Selector/SkinOptionsDataAsset.h"
 #include "AObjectPoolManager.h"
 #include "InputActionValue.h"
+#include "NiagaraProjectile.h"
+#include "Camera/CameraComponent.h" // Pour UCameraComponent
+#include "GameFramework/SpringArmComponent.h" // Pour USpringArmComponent (déjà inclus mais bon à vérifier)
+#include "InputMappingContext.h" // Pour UInputMappingContext
+#include "InputAction.h" // Pour UInputAction*
+#include "Components/ArrowComponent.h" // Pour UArrowComponent*
+#include "Camera/CameraShakeBase.h" // Pour TSubclassOf<UCameraShakeBase>
+#include "Particles/ParticleSystem.h" // Pour UParticleSystem* (même si c'est un effet Legacy)
+#include "Sound/SoundBase.h" // Pour USoundBase*
+#include "Materials/MaterialInterface.h" // Pour UMaterialInterface*
+#include "Materials/MaterialInstanceDynamic.h" // Pour UMaterialInstanceDynamic*
 #include "SpaceshipCharacter.generated.h"
 
 UCLASS()
@@ -21,29 +34,85 @@ public:
     virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
     virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
 
+    // --- Camera Components ---
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
+    USpringArmComponent* SpringArmComp;
+
+    UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
+    UCameraComponent* CameraComp;
+
+    // --- Camera Settings ---
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Camera")
+    float CameraBoomLength = 300.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Camera")
+    bool bEnableCameraLag = true;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Camera", meta = (EditCondition = "bEnableCameraLag"))
+    float CameraLagSpeed = 10.0f;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Camera", meta = (EditCondition = "bEnableCameraLag"))
+    bool bEnableCameraRotationLag = true;
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Camera", meta = (EditCondition = "bEnableCameraRotationLag"))
+    float CameraRotationLagSpeed = 10.0f;
+
+
+    // --- Hit Effect System ---
+
+    // Class of camera shake to play when hit
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Effects")
+    TSubclassOf<UCameraShakeBase> HitCameraShakeClass;
+
+    // Post-process material to apply briefly on hit
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Effects")
+    UMaterialInterface* HitPostProcessMaterial;
+
+    // Particle effect to spawn at ship location on hit (optional)
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Effects")
+    UParticleSystem* HitParticleEffect;
+
+    // Sound effect to play on hit
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Hit Effects")
+    USoundBase* HitSound;
+
+    // Parameter name in HitPostProcessMaterial to control intensity (if any)
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Hit Effects")
+    FName HitEffectIntensityParamName = TEXT("Intensity");
+
+    // Duration the hit post-process effect stays active
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Hit Effects")
+    float HitEffectDuration = 0.2f;
+
+
+    // --- Existing Components & Properties ---
+
     // Input Action references
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-    class UInputAction* MoveAction;
+    UInputAction* MoveAction;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-    class UInputAction* FireAction;
+    UInputAction* FireAction;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-    class UInputAction* SwitchModeAction;
+    UInputAction* SwitchModeAction;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-    class UInputAction* ExitShipAction;
+    UInputAction* ExitShipAction;
 
     // Input Mapping Context
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Input")
-    class UInputMappingContext* DefaultMappingContext;
+    UInputMappingContext* DefaultMappingContext;
 
     // Components
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    class UArrowComponent* ProjectileSpawnPointWhite;
+    UArrowComponent* ProjectileSpawnPointWhite;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Components")
-    class UArrowComponent* ProjectileSpawnPointBlack;
+    UArrowComponent* ProjectileSpawnPointBlack;
+    
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Combat|Projectile")
+    TSubclassOf<ANiagaraProjectile> ProjectileClass; // Une seule classe pour tous les tirs
 
     // Movement properties
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
@@ -68,24 +137,43 @@ public:
 
     UFUNCTION(BlueprintCallable, Category = "Gameplay")
     void ToggleSpaceshipMode();
-    
+
     UFUNCTION(BlueprintCallable, Category = "Gameplay")
     void Enter(ACharacter* Character);
-    
+
     UFUNCTION(BlueprintCallable, Category = "Gameplay")
     void Exit();
 
 protected:
     virtual void BeginPlay() override;
+    bool bCanToggleColor;
 
+    // Handle pour le timer du cooldown
+    FTimerHandle ColorToggleCooldownTimerHandle;
+
+    // Durée du cooldown (exposable en Blueprint pour ajustement facile)
+    UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "Gameplay|Cooldowns")
+    float ColorToggleCooldownDuration = 0.3f;
+
+    // Fonction appelée à la fin du cooldown pour réactiver le changement
+    void ResetColorToggleCooldown();
     // Input handlers
     void Move(const FInputActionValue& Value);
     void HandleFire(const FInputActionValue& Value);
     void HandleSwitchMode(const FInputActionValue& Value);
     void HandleExitShip(const FInputActionValue& Value);
 
+    // Hit effect handler
+    void HandleHit(float DamageAmount, FDamageEvent const& DamageEvent, AActor* DamageCauser);
+
+    // Function to apply and then remove the hit post-process effect
+    void TriggerHitPostProcess(float Intensity);
+    void ClearHitPostProcess();
+    FTimerHandle HitEffectTimerHandle;
+
+
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Customization")
-    class USkinOptionsDataAsset* SkinOptions;
+    USkinOptionsDataAsset* SkinOptions;
 
     UPROPERTY()
     USpaceshipSaveManager* SaveManager;
@@ -104,7 +192,11 @@ protected:
 
     FMaterialSet CurrentMaterials;
 
+    // Helper Functions
     void UpdateMaterials();
     void HandleSpaceshipMovement(float DeltaTime);
     void UpdateRotation(float RollInput, float PitchInput);
+    // Store dynamic material instance for hit effect
+    UPROPERTY()
+    class UMaterialInstanceDynamic* HitMID;
 };
