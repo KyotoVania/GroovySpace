@@ -13,7 +13,7 @@ class SPACESHIP_API UWBP_HUD_Base : public UUserWidget
 	GENERATED_BODY()
 
 public:
-	// Widgets for display
+	// Existing widgets
 	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
 	UTextBlock* SongNameText;
 
@@ -23,17 +23,26 @@ public:
 	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
 	UTextBlock* HealthText;
 
+	// New score and combo widgets
+	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
+	UTextBlock* CurrentScoreText;
+
+	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
+	UTextBlock* HighScoreText;
+
+	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
+	UTextBlock* ComboText;
+
 	// Animation for feedback
 	UPROPERTY(BlueprintReadWrite, Transient, meta = (BindWidgetAnim))
 	UWidgetAnimation* ScaleUpFeedback;
 
 	// Update functions
-	UFUNCTION()
 	void UpdateSongName(const FString& SongName);
-
-	UFUNCTION()
 	void UpdateHealth(float HealthPercentage);
-
+	void UpdateScore(int32 CurrentScore, int32 HighScore);
+	void UpdateCombo(int32 ComboCount);
+    
 	// Existing function
 	virtual void PlayComboFeedback_Implementation();
 };

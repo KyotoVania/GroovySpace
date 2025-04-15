@@ -131,17 +131,7 @@ void AVisualizerActor::InitializeAudioAnalysis()
 	if (QNRT->Sound)
 	{
 		CurrentSoundWave = QNRT->Sound;
-		if (CurrentSoundWave)
-		{
-			if (CurrentSoundWave)
-			{
-				ASpaceshipCharacter* Character = Cast<ASpaceshipCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
-				if (Character && Character->GetHUDWidget())
-				{
-					Character->GetHUDWidget()->UpdateSongName(CurrentSoundWave->GetName());
-				}
-			}
-		}
+		
 		BeginCalculTest();
 	}
 }
@@ -553,6 +543,8 @@ void AVisualizerActor::CalculateThresholds(const TArray<float>& BandAverages)
 	{
 		UE_LOG(LogTemp, Log, TEXT("Band %d Threshold: %f"), BandIndex, VisualizerSettings->BandThresholds[BandIndex]);
 	}
+
+	
 }
 void AVisualizerActor::SetupDebugInputs(APlayerController* PlayerController)
 {
@@ -857,3 +849,4 @@ void AVisualizerActor::OnDebugEndLevelTriggered(const FInputActionValue& Value)
 	}
 #endif
 }
+

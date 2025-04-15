@@ -100,6 +100,8 @@ void ASpaceshipCharacter::BeginPlay()
             {
                 HUDWidget->AddToViewport();
                 HUDWidget->UpdateHealth(CurrentHealth / MaxHealth);
+                //use the save manager to get the song name
+                
                 UE_LOG(LogTemp, Log, TEXT("HUD Widget created and added to viewport"));
             }
             else
@@ -127,7 +129,18 @@ void ASpaceshipCharacter::BeginPlay()
     }
 
     SaveManager = USpaceshipSaveManager::GetSaveManager(GetWorld());
-
+    if (SaveManager && SaveManager->CurrentSave)
+    {
+        USoundWave* LastSong = SaveManager->CurrentSave->LastSong.Get();
+        if (LastSong)
+        {
+            UE_LOG(LogTemp, Log, TEXT("Last song name: %s"), *LastSong->GetName());
+            HUDWidget->UpdateSongName(LastSong->GetName());
+        }
+    } else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to get LastSong from SaveManager"));
+    }
     for (TActorIterator<AObjectPoolManager> It(GetWorld()); It; ++It)
     {
         PoolManager = *It;
