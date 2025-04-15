@@ -35,7 +35,11 @@ public:
 	// Save current game data
 	UFUNCTION(BlueprintCallable, Category = "Save")
 	bool SaveGame();
-    
+	UFUNCTION(BlueprintCallable, Category = "Save")
+	bool IsFirstTime() const;
+
+	UFUNCTION(BlueprintCallable, Category = "Save")
+	void SetFirstTimeFlag(bool bNewValue);
 	// Get or create the save manager (singleton-like pattern)
 	UFUNCTION(BlueprintCallable, Category = "Save", meta = (WorldContext = "WorldContextObject"))
 	static USpaceshipSaveManager* GetSaveManager(UObject* WorldContextObject);

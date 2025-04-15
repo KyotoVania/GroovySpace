@@ -4,6 +4,7 @@
 #include "Engine/World.h"
 
 #include "Kismet/GameplayStatics.h"
+#include "Spaceship/Widget/UWBP_GameOver.h"
 
 AVisualizerActor::AVisualizerActor()
 {
@@ -28,7 +29,12 @@ void AVisualizerActor::BeginPlay()
 		UE_LOG(LogTemp, Error, TEXT("VisualizerSettings is NULL! Cannot initialize visualizer."));
 		return;
 	}
-
+#if !UE_BUILD_SHIPPING
+	if (APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0))
+	{
+		SetupDebugInputs(PC);
+	}
+#endif
 	// Update difficulty from save game
 	if (SaveManager && SaveManager->CurrentSave)
 	{
@@ -534,9 +540,45 @@ void AVisualizerActor::CalculateThresholds(const TArray<float>& BandAverages)
 		UE_LOG(LogTemp, Log, TEXT("Band %d Threshold: %f"), BandIndex, VisualizerSettings->BandThresholds[BandIndex]);
 	}
 }
+void AVisualizerActor::SetupDebugInputs(APlayerController* PlayerController)
+{
+	if (!PlayerController) return;
+	UE_LOG(LogTemp, Log, TEXT("Setting up debug inputs for player controller"));
+	// Get the local player enhanced input subsystem
+	UEnhancedInputLocalPlayerSubsystem* Subsystem = ULocalPlayer::GetSubsystem<UEnhancedInputLocalPlayerSubsystem>(PlayerController->GetLocalPlayer());
+	if (!Subsystem)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to get Enhanced Input Subsystem for debug controls"));
+		return;
+	}
+
+	// Get the enhanced input component
+	UEnhancedInputComponent* EnhancedInputComponent = Cast<UEnhancedInputComponent>(PlayerController->InputComponent);
+	if (!EnhancedInputComponent)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Failed to get Enhanced Input Component for debug controls"));
+		return;
+	}
+
+	// Bind the debug action
+	if (DebugEndLevelAction)
+	{
+		EnhancedInputComponent->BindAction(DebugEndLevelAction, ETriggerEvent::Triggered, this, &AVisualizerActor::OnDebugEndLevelTriggered);
+		UE_LOG(LogTemp, Log, TEXT("Debug End Level action bound successfully"));
+	}
+}
 
 void AVisualizerActor::UpdateVisualizerAtTime( const float InSeconds)
+
 {
+//	UE_LOG(LogTemp, Warning, TEXT("InSeconds >= MusicDuration. Ending analysis. : %f >= %f"), InSeconds, MusicDuration);
+
+	if (InSeconds >= MusicDuration)
+	{
+		HandleLevelComplete();
+		return;
+	}
+	
 	if (!PoolManager)
 	{
 		UE_LOG(LogTemp, Error, TEXT("PoolManager is NULL!"));
@@ -699,7 +741,6 @@ void AVisualizerActor::CheckLowFrequenciesAndChangeColor(const TArray<float>& Ba
 		if (BandValues[i] > VisualizerSettings->BandThresholds[i])
 		{
 			LowFrequencyExceedCount++;
-			UE_LOG(LogTemp, Log, TEXT("Low frequency band %d exceeded threshold"), i);
 		}
 	}
 
@@ -741,3 +782,64 @@ float AVisualizerActor::CalculateGlobalAmplitude(const TArray<float>& BandValues
 	return Sum / BandValues.Num(); 
 }
 
+void AVisualizerActor::HandleLevelComplete()
+{
+	// Protection contre les appels multiples
+	if (bLevelCompleted)
+	{
+		return;
+	}
+	bLevelCompleted = true;
+
+	UE_LOG(LogTemp, Log, TEXT("Level complete!"));    
+
+	// Pause la musique
+	if (AudioComponent)
+	{
+		AudioComponent->Stop();
+	}
+
+	// Sauvegarder le score
+	AScoreManager* ScoreManager = nullptr;
+	if (SaveManager && CurrentSoundWave)
+	{
+		ScoreManager = Cast<AScoreManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AScoreManager::StaticClass()));
+		if (ScoreManager)
+		{
+			int32 FinalScore = ScoreManager->GetScore();
+			SaveManager->AddHighScore(CurrentSoundWave, FinalScore);
+		}
+	}
+
+	// Créer et afficher le widget de fin
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	if (PC)
+	{
+		// Change input mode to UI
+		FInputModeUIOnly InputMode;
+		PC->SetInputMode(InputMode);
+		PC->SetShowMouseCursor(true);
+
+		UWBP_GameOver* GameOverWidget = CreateWidget<UWBP_GameOver>(PC, GameOverWidgetClass);
+		if (GameOverWidget)
+		{
+			FString SongName = CurrentSoundWave ? CurrentSoundWave->GetName() : TEXT("Unknown");
+			int32 Score = ScoreManager ? ScoreManager->GetScore() : 0;
+            
+			GameOverWidget->InitializeGameOver(true, SongName, Score);
+			GameOverWidget->AddToViewport();
+		}
+	}
+}
+
+void AVisualizerActor::OnDebugEndLevelTriggered(const FInputActionValue& Value)
+{
+#if !UE_BUILD_SHIPPING
+	// Protection supplémentaire pour le debug
+	if (!bLevelCompleted)
+	{
+		UE_LOG(LogTemp, Log, TEXT("Debug: Triggering level end"));
+		HandleLevelComplete();
+	}
+#endif
+}

@@ -7,6 +7,8 @@
 #include "FMaterialSet.h"
 #include "ASoundSphere.h"
 #include "AObjectPoolManager.h"
+#include "EnhancedInputSubsystems.h"
+#include "EnhancedInputComponent.h"
 #include "AudioSynesthesia/Classes/ConstantQNRT.h"
 #include "Components/AudioComponent.h"
 #include "Spaceship/Selector/SkinOptionsDataAsset.h"
@@ -69,6 +71,8 @@ public:
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visualizer")
 	int32 ColorChangeThreshold = 5;
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = "UI")
+	TSubclassOf<class UWBP_GameOver> GameOverWidgetClass;
 
 	// Limites de déplacement pour le visualiseur
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visualizer")
@@ -109,7 +113,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
 	void UpdateVisualizer(const TArray<float>& BandValues);
 
-	// In public UFUNCTION section:
+
+
+	//DEBUG
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Debug|Input")
+	class UInputAction* DebugEndLevelAction;
+	
 	UFUNCTION(BlueprintCallable, Category = "Audio")
 	UAudioComponent* GetAudioComponent() const { return AudioComponent; }
 	// Réinitialisation du visualiseur
@@ -133,6 +142,8 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
 	float CalculateGlobalAmplitude(const TArray<float>& BandValues);
+	UFUNCTION(BlueprintCallable, Category = "Visualizer")
+	void HandleLevelComplete();
 
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
 	void SpawnBoss();
@@ -176,9 +187,15 @@ protected:
 
 	// Timer handle for updates
 	FTimerHandle UpdateTimerHandle;
+	// Debug Input handler
+	void OnDebugEndLevelTriggered(const FInputActionValue& Value);
 
+	// Setup input binding (if not already present)
+	void SetupDebugInputs(APlayerController* PlayerController);
 	
 private:
+	bool bLevelCompleted = false;
+
 	FTimerHandle BossSlideTimerHandle; // Timer pour le mouvement du boss
 	FVector LinearPosition; // Nouvelle variable pour suivre la position de base
 	int32 MovementDirection = 1;

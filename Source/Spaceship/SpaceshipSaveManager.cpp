@@ -121,3 +121,17 @@ FString USpaceshipSaveManager::GetFormattedHighScores(USoundWave* Song) const
     return UHighScoreUtils::GetFormattedScoreList(CurrentSave->SongHighScores, Song);
     
 }
+
+bool USpaceshipSaveManager::IsFirstTime() const
+{
+    return CurrentSave ? CurrentSave->bFirstTime : true; // true par défaut si pas de save
+}
+
+void USpaceshipSaveManager::SetFirstTimeFlag(bool bNewValue)
+{
+    if (CurrentSave)
+    {
+        CurrentSave->bFirstTime = bNewValue;
+        SaveGame();
+    }
+}

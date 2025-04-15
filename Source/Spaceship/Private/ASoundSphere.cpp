@@ -55,7 +55,6 @@ void ASoundSphere::SetMaterialColor(UMaterialInterface* NewMaterial)
 	if (NewMaterial && MeshComponent)
 	{
 		MeshComponent->SetMaterial(0, NewMaterial);
-		UE_LOG(LogTemp, Log, TEXT("Material applied successfully!"));
 	}
 	else
 	{
