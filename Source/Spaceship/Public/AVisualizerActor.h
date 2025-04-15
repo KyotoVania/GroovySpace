@@ -158,13 +158,17 @@ public:
 	USoundWave* CurrentSoundWave;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Analysis")
 	UAnalysisDataManager* AnalysisDataManager;
+
+	UPROPERTY()
+	FString CurrentSongName;
+
 protected:
 	// Tableau des barres générées
 	UPROPERTY()
 	TArray<AActor*> SpawnedBars;
 	UPROPERTY()
 	AObjectPoolManager* PoolManager;
-	
+
 	int32 LowFrequencyExceedCount = 0;
 	
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Visualizer")

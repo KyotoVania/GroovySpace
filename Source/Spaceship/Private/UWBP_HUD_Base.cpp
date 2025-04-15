@@ -3,6 +3,15 @@
 void UWBP_HUD_Base::PlayComboFeedback_Implementation()
 {
 	UE_LOG(LogTemp, Warning, TEXT("Default PlayComboFeedback C++ Implementation"));
+	if (ScaleUpFeedback)
+	{
+		// Joue l'animation de feedback
+		PlayAnimation(ScaleUpFeedback);
+	}
+	else
+	{
+		UE_LOG(LogTemp, Warning, TEXT("ScaleUpFeedback animation is null!"));
+	}
 }
 
 void UWBP_HUD_Base::UpdateSongName(const FString& SongName)

@@ -6,6 +6,7 @@
 #include "Components/AudioComponent.h"
 #include "Components/StaticMeshComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Spaceship/SpaceshipCharacter.h"
 #include "Spaceship/Widget/UWBP_GameOver.h"
 
 AVisualizerActor::AVisualizerActor()
@@ -71,18 +72,6 @@ void AVisualizerActor::BeginPlay()
 				VisualizerSettings->ConstantQNRT = PreAnalyzedData;
 				CurrentSoundWave = LastSong;
 				AudioComponent->SetSound(CurrentSoundWave);
-				if (CurrentSoundWave)
-				{
-					// Mettre à jour le HUD avec le nom de la chanson
-					APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-					if (AHUD* PlayerHUD = PC->GetHUD()) // Get base HUD
-					{
-						if (UWBP_HUD_Base* HUDWidget = Cast<UWBP_HUD_Base>(PlayerHUD)) // Cast to specific HUD
-						{
-							HUDWidget->UpdateSongName(CurrentSoundWave->GetName()); //
-						}
-					}
-				}
 				// No need to call BeginCalculTest() as data is pre-analyzed
 				// Just initialize visualizer components
 				InitializeAudioAnalysis();
@@ -142,9 +131,21 @@ void AVisualizerActor::InitializeAudioAnalysis()
 	if (QNRT->Sound)
 	{
 		CurrentSoundWave = QNRT->Sound;
+		if (CurrentSoundWave)
+		{
+			if (CurrentSoundWave)
+			{
+				ASpaceshipCharacter* Character = Cast<ASpaceshipCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
+				if (Character && Character->GetHUDWidget())
+				{
+					Character->GetHUDWidget()->UpdateSongName(CurrentSoundWave->GetName());
+				}
+			}
+		}
 		BeginCalculTest();
 	}
 }
+
 void AVisualizerActor::InitializeVisualizer()
 {
 	if (!VisualizerSettings)

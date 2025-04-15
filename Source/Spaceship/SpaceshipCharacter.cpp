@@ -87,7 +87,35 @@ void ASpaceshipCharacter::BeginPlay()
 {
     Super::BeginPlay();
     CurrentHealth = MaxHealth;
-
+    
+    // Update initial health display
+    if (HUDWidgetClass)
+    {
+        UE_LOG(LogTemp, Log, TEXT("Creating HUD Widget"));
+        APlayerController* PC = Cast<APlayerController>(GetController());
+        if (PC)
+        {
+            HUDWidget = CreateWidget<UWBP_HUD_Base>(PC, HUDWidgetClass);
+            if (HUDWidget)
+            {
+                HUDWidget->AddToViewport();
+                HUDWidget->UpdateHealth(CurrentHealth / MaxHealth);
+                UE_LOG(LogTemp, Log, TEXT("HUD Widget created and added to viewport"));
+            }
+            else
+            {
+                UE_LOG(LogTemp, Error, TEXT("Failed to create HUD Widget"));
+            }
+        }
+        else
+        {
+            UE_LOG(LogTemp, Error, TEXT("Failed to get PlayerController"));
+        }
+    }
+    else
+    {
+        UE_LOG(LogTemp, Error, TEXT("HUDWidgetClass is not set"));
+    }
     // --- Update Camera Boom Settings ---
     if (SpringArmComp)
     {
@@ -396,19 +424,11 @@ float ASpaceshipCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Da
         false
     );
 
-    // Notifier le HUD de la mise à jour des HP
-    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    if (HUDWidget)
     {
-        if (AHUD* PlayerHUD = PC->GetHUD()) // Get base HUD
-        {
-            if (UWBP_HUD_Base* HUDWidget = Cast<UWBP_HUD_Base>(PlayerHUD)) // Cast to specific HUD
-            {
-                HUDWidget->UpdateHealth(CurrentHealth / MaxHealth); //
-            }
-        }
+        HUDWidget->UpdateHealth(CurrentHealth / MaxHealth);
     }
-
-    // Déclencher les effets visuels (code existant)
+    
     if (ActualDamage > 0.0f)
     {
         HandleHit(ActualDamage, DamageEvent, DamageCauser);
@@ -723,7 +743,6 @@ void ASpaceshipCharacter::StopHealthRegeneration()
     GetWorld()->GetTimerManager().ClearTimer(HealthRegenTimerHandle);
     GetWorld()->GetTimerManager().ClearTimer(HealthRegenDelayHandle);
 }
-
 void ASpaceshipCharacter::RegenerateHealth()
 {
     if (CurrentHealth >= MaxHealth)
@@ -732,15 +751,31 @@ void ASpaceshipCharacter::RegenerateHealth()
         return;
     }
 
-    float HealthToAdd = (HealthRegenRate * 0.1f);  // 0.1 car timer à 0.1 sec
+    float HealthToAdd = (HealthRegenRate * 0.1f);
     CurrentHealth = FMath::Min(MaxHealth, CurrentHealth + HealthToAdd);
 
-    // Mettre à jour le HUD
     if (APlayerController* PC = Cast<APlayerController>(GetController()))
     {
         if (UWBP_HUD_Base* HUD = Cast<UWBP_HUD_Base>(PC->GetHUD()))
         {
             HUD->UpdateHealth(CurrentHealth / MaxHealth);
+        }
+    }
+}
+
+void ASpaceshipCharacter::CreateHUDWidget()
+{
+    if (HUDWidgetClass)
+    {
+        APlayerController* PC = Cast<APlayerController>(GetController());
+        if (PC)
+        {
+            HUDWidget = CreateWidget<UWBP_HUD_Base>(PC, HUDWidgetClass);
+            if (HUDWidget)
+            {
+                HUDWidget->AddToViewport();
+                HUDWidget->UpdateHealth(CurrentHealth / MaxHealth);
+            }
         }
     }
 }

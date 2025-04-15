@@ -119,7 +119,7 @@ void AEnemyBoss::HandleDeath()
     // Add final score bonus
     if(ScoreManager)
     {
-        ScoreManager->AddScore(2500); // TODO: Use appropriate score value
+        ScoreManager->AddScore(100); // TODO: Use appropriate score value
     }
 
     // Handle respawn via VisualizerActor

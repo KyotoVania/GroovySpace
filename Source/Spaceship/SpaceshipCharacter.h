@@ -35,8 +35,8 @@ public:
     ASpaceshipCharacter();
 
     virtual void Tick(float DeltaTime) override;
-    virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-    virtual float TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser) override;
+    virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
+    virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
 
     // --- Camera Components ---
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
@@ -163,14 +163,19 @@ public:
 
     //Thruster
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VFX")
-    class UNiagaraComponent* LeftThrusterVFX;
+	UNiagaraComponent* LeftThrusterVFX;
 
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "VFX")
-    class UNiagaraComponent* RightThrusterVFX;
+	UNiagaraComponent* RightThrusterVFX;
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VFX")
-    class UNiagaraSystem* ThrusterEffect;
-
+	UNiagaraSystem* ThrusterEffect;
+	UFUNCTION(BlueprintCallable)
+	void CreateHUDWidget();
+	UFUNCTION(BlueprintCallable)
+	UWBP_HUD_Base* GetHUDWidget() const { return HUDWidget; }
+	UPROPERTY(EditDefaultsOnly, Category = "UI")
+	TSubclassOf<UWBP_HUD_Base> HUDWidgetClass;
 protected:
     virtual void BeginPlay() override;
     bool bCanToggleColor;
@@ -188,13 +193,16 @@ protected:
 
 	UPROPERTY()
 	float CurrentHealth;
-
+	UPROPERTY()
+	UWBP_HUD_Base* HUDWidget;
+	
 	FTimerHandle HealthRegenTimerHandle;
 	FTimerHandle HealthRegenDelayHandle;
 	void StartHealthRegeneration();
 	void StopHealthRegeneration();
 	void RegenerateHealth();
-    // Handle pour le timer du cooldown
+	
+	// Handle pour le timer du cooldown
     FTimerHandle ColorToggleCooldownTimerHandle;
     FVector2D CurrentMovementInput; // Stocker l'input actuel
 
@@ -229,7 +237,7 @@ protected:
     ACharacter* PlayerCharacter;
 
     UPROPERTY()
-    class AObjectPoolManager* PoolManager;
+	AObjectPoolManager* PoolManager;
 
     UPROPERTY(EditDefaultsOnly, Category = "Combat")
     float FireCooldown = 0.2f;
@@ -245,7 +253,7 @@ protected:
     void UpdateRotation(float RollInput, float PitchInput);
     // Store dynamic material instance for hit effect
     UPROPERTY()
-    class UMaterialInstanceDynamic* HitMID;
+	UMaterialInstanceDynamic* HitMID;
     static constexpr float THRUSTER_FORCE_MULTIPLIER = 2.0f;
     static constexpr float PARTICULATE_FORCE_MULTIPLIER = 1.0f;
     static constexpr float ENERGY_CORE_FORCE_MULTIPLIER = 0.25f; // Division par 4
