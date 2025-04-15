@@ -37,7 +37,7 @@ void AScoreManager::IncrementCombo()
 		UWBP_HUD_Base* HUD = Cast<UWBP_HUD_Base>(FoundWidgets[0]);
 		if (HUD)
 		{
-			HUD->PlayComboFeedback();
+			HUD->PlayComboFeedback_Implementation();
 			UE_LOG(LogTemp, Warning, TEXT("Combo animation triggered!"));
 		}
 	}

@@ -18,6 +18,7 @@
 #include "Sound/SoundBase.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "TimerManager.h"
+#include "UWBP_HUD_Base.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 
 
@@ -85,6 +86,7 @@ ASpaceshipCharacter::ASpaceshipCharacter()
 void ASpaceshipCharacter::BeginPlay()
 {
     Super::BeginPlay();
+    CurrentHealth = MaxHealth;
 
     // --- Update Camera Boom Settings ---
     if (SpringArmComp)
@@ -370,19 +372,43 @@ void ASpaceshipCharacter::ToggleSpaceshipMode()
     }
 }
 
-float ASpaceshipCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+float ASpaceshipCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, 
+                                     AController* EventInstigator, AActor* DamageCauser)
 {
-    // --- Color Matching Check ---
+    // Vérification des couleurs (code existant)
     ASoundSphere* Projectile = Cast<ASoundSphere>(DamageCauser);
     if (Projectile && Projectile->GetColor() == bIsWhiteMode)
     {
-        return 0.0f; // Ignore damage if colors match
+        return 0.0f;
     }
 
-    // --- Apply Actual Damage ---
-    const float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+    // Appliquer les dégâts
+    float ActualDamage = DamagePerHit;  // Utiliser une valeur fixe
+    CurrentHealth = FMath::Max(0.0f, CurrentHealth - ActualDamage);
 
-    // --- Trigger Hit Effects if Damage Was Taken ---
+    // Arrêter la régénération et relancer le délai
+    StopHealthRegeneration();
+    GetWorld()->GetTimerManager().SetTimer(
+        HealthRegenDelayHandle,
+        this,
+        &ASpaceshipCharacter::StartHealthRegeneration,
+        HealthRegenDelay,
+        false
+    );
+
+    // Notifier le HUD de la mise à jour des HP
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
+        if (AHUD* PlayerHUD = PC->GetHUD()) // Get base HUD
+        {
+            if (UWBP_HUD_Base* HUDWidget = Cast<UWBP_HUD_Base>(PlayerHUD)) // Cast to specific HUD
+            {
+                HUDWidget->UpdateHealth(CurrentHealth / MaxHealth); //
+            }
+        }
+    }
+
+    // Déclencher les effets visuels (code existant)
     if (ActualDamage > 0.0f)
     {
         HandleHit(ActualDamage, DamageEvent, DamageCauser);
@@ -677,4 +703,44 @@ FNiagaraEffectPair ASpaceshipCharacter::GetSelectedVFXPair() const
 
     // 5. Retourner la paire d'effets correspondante
     return VFXOptions->AvailableVFX[SelectedVFXID].Effects;
+}
+
+void ASpaceshipCharacter::StartHealthRegeneration()
+{
+    if (CurrentHealth >= MaxHealth) return;
+
+    GetWorld()->GetTimerManager().SetTimer(
+        HealthRegenTimerHandle,
+        this,
+        &ASpaceshipCharacter::RegenerateHealth,
+        0.1f,  // Régénérer toutes les 0.1 secondes
+        true   // Répéter
+    );
+}
+
+void ASpaceshipCharacter::StopHealthRegeneration()
+{
+    GetWorld()->GetTimerManager().ClearTimer(HealthRegenTimerHandle);
+    GetWorld()->GetTimerManager().ClearTimer(HealthRegenDelayHandle);
+}
+
+void ASpaceshipCharacter::RegenerateHealth()
+{
+    if (CurrentHealth >= MaxHealth)
+    {
+        StopHealthRegeneration();
+        return;
+    }
+
+    float HealthToAdd = (HealthRegenRate * 0.1f);  // 0.1 car timer à 0.1 sec
+    CurrentHealth = FMath::Min(MaxHealth, CurrentHealth + HealthToAdd);
+
+    // Mettre à jour le HUD
+    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    {
+        if (UWBP_HUD_Base* HUD = Cast<UWBP_HUD_Base>(PC->GetHUD()))
+        {
+            HUD->UpdateHealth(CurrentHealth / MaxHealth);
+        }
+    }
 }

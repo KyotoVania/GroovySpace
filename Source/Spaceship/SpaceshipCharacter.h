@@ -174,7 +174,26 @@ public:
 protected:
     virtual void BeginPlay() override;
     bool bCanToggleColor;
+	UPROPERTY(EditDefaultsOnly, Category = "Health")
+	float MaxHealth = 100.0f;
 
+	UPROPERTY(EditDefaultsOnly, Category = "Health")
+	float DamagePerHit = 33.0f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Health|Regeneration")
+	float HealthRegenRate = 5.0f;  // HP par seconde
+
+	UPROPERTY(EditDefaultsOnly, Category = "Health|Regeneration")
+	float HealthRegenDelay = 3.0f; // Délai avant régénération en secondes
+
+	UPROPERTY()
+	float CurrentHealth;
+
+	FTimerHandle HealthRegenTimerHandle;
+	FTimerHandle HealthRegenDelayHandle;
+	void StartHealthRegeneration();
+	void StopHealthRegeneration();
+	void RegenerateHealth();
     // Handle pour le timer du cooldown
     FTimerHandle ColorToggleCooldownTimerHandle;
     FVector2D CurrentMovementInput; // Stocker l'input actuel
