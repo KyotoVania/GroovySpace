@@ -2,7 +2,6 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
-#include "Spaceship/SpaceshipCharacter.h"
 #include "AScoreManager.generated.h"
 
 UCLASS()
@@ -18,12 +17,10 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Combo")
 	int32 ComboCount;
-	ASpaceshipCharacter* Character;
 
-	UFUNCTION(BlueprintCallable, Category = "Combo")
+	UFUNCTION(BlueprintCallable, Category = "Score")
 	void AddScore(int32 Points);
 
-	// Fonction pour gérer le combo
 	UFUNCTION(BlueprintCallable, Category = "Combo")
 	void IncrementCombo();
 
@@ -32,7 +29,4 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Score")
 	int32 GetScore() const { return CurrentScore; }
-
-private:
-
 };

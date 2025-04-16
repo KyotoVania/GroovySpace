@@ -8,6 +8,7 @@
 #include "EnhancedInputComponent.h"
 #include "EnhancedInputSubsystems.h"
 // Required Includes for new features
+#include "ASpaceshipGameMode.h"
 #include "NiagaraComponentPoolMethodEnum.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -88,35 +89,36 @@ void ASpaceshipCharacter::BeginPlay()
     Super::BeginPlay();
     CurrentHealth = MaxHealth;
     
-    // Update initial health display
-    if (HUDWidgetClass)
+    SaveManager = USpaceshipSaveManager::GetSaveManager(GetWorld());
+    if (SaveManager && SaveManager->CurrentSave)
     {
-        UE_LOG(LogTemp, Log, TEXT("Creating HUD Widget"));
-        APlayerController* PC = Cast<APlayerController>(GetController());
-        if (PC)
+        USoundWave* LastSong = SaveManager->CurrentSave->LastSong.Get();
+        if (LastSong)
         {
-            HUDWidget = CreateWidget<UWBP_HUD_Base>(PC, HUDWidgetClass);
-            if (HUDWidget)
-            {
-                HUDWidget->AddToViewport();
-                HUDWidget->UpdateHealth(CurrentHealth / MaxHealth);
-                //use the save manager to get the song name
-                
-                UE_LOG(LogTemp, Log, TEXT("HUD Widget created and added to viewport"));
-            }
-            else
-            {
-                UE_LOG(LogTemp, Error, TEXT("Failed to create HUD Widget"));
-            }
+            UE_LOG(LogTemp, Log, TEXT("Last song name: %s"), *LastSong->GetName());
         }
-        else
-        {
-            UE_LOG(LogTemp, Error, TEXT("Failed to get PlayerController"));
-        }
+    } else
+    {
+        UE_LOG(LogTemp, Error, TEXT("Failed to get LastSong from SaveManager"));
     }
-    else
+    // Update initial health display
+    if (ASpaceshipGameMode* GameMode = GetSpaceshipGameMode())
     {
-        UE_LOG(LogTemp, Error, TEXT("HUDWidgetClass is not set"));
+        UE_LOG(LogTemp, Log, TEXT("GameMode found: %s"), *GameMode->GetName());
+        if (UWBP_HUD_Base* HUD = GameMode->GetGameHUD())
+        {
+            HUD->UpdateHealth(CurrentHealth / MaxHealth);
+            
+            // Update song name through SaveManager
+            if (SaveManager && SaveManager->CurrentSave)
+            {
+                USoundWave* LastSong = SaveManager->CurrentSave->LastSong.Get();
+                if (LastSong)
+                {
+                    HUD->UpdateSongName(LastSong->GetName());
+                }
+            }
+        }
     }
     // --- Update Camera Boom Settings ---
     if (SpringArmComp)
@@ -128,19 +130,6 @@ void ASpaceshipCharacter::BeginPlay()
         SpringArmComp->CameraRotationLagSpeed = CameraRotationLagSpeed;
     }
 
-    SaveManager = USpaceshipSaveManager::GetSaveManager(GetWorld());
-    if (SaveManager && SaveManager->CurrentSave)
-    {
-        USoundWave* LastSong = SaveManager->CurrentSave->LastSong.Get();
-        if (LastSong)
-        {
-            UE_LOG(LogTemp, Log, TEXT("Last song name: %s"), *LastSong->GetName());
-            HUDWidget->UpdateSongName(LastSong->GetName());
-        }
-    } else
-    {
-        UE_LOG(LogTemp, Error, TEXT("Failed to get LastSong from SaveManager"));
-    }
     for (TActorIterator<AObjectPoolManager> It(GetWorld()); It; ++It)
     {
         PoolManager = *It;
@@ -178,6 +167,19 @@ void ASpaceshipCharacter::Tick(float DeltaTime)
     }
 }
 
+ASpaceshipGameMode* ASpaceshipCharacter::GetSpaceshipGameMode() const
+{
+    return Cast<ASpaceshipGameMode>(GetWorld()->GetAuthGameMode());
+}
+
+UWBP_HUD_Base* ASpaceshipCharacter::GetHUDSafely() const
+{
+    if (ASpaceshipGameMode* GameMode = GetSpaceshipGameMode())
+    {
+        return GameMode->GetGameHUD();
+    }
+    return nullptr;
+}
 void ASpaceshipCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
 {
     Super::SetupPlayerInputComponent(PlayerInputComponent);
@@ -437,9 +439,9 @@ float ASpaceshipCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Da
         false
     );
 
-    if (HUDWidget)
+    if (UWBP_HUD_Base* HUD = GetHUDSafely())
     {
-        HUDWidget->UpdateHealth(CurrentHealth / MaxHealth);
+        HUD->UpdateHealth(CurrentHealth / MaxHealth);
     }
     
     if (ActualDamage > 0.0f)

@@ -176,6 +176,13 @@ public:
 	UWBP_HUD_Base* GetHUDWidget() const { return HUDWidget; }
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UWBP_HUD_Base> HUDWidgetClass;
+
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	ASpaceshipGameMode* GetSpaceshipGameMode() const;
+
+	// Add safe HUD accessor
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	UWBP_HUD_Base* GetHUDSafely() const;
 protected:
     virtual void BeginPlay() override;
     bool bCanToggleColor;

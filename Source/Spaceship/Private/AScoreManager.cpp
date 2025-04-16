@@ -2,12 +2,14 @@
 #include "UWBP_HUD_Base.h"
 #include "Kismet/GameplayStatics.h"
 #include "Spaceship/SpaceshipSaveManager.h"
+#include "Spaceship/ASpaceshipGameMode.h"
 
 AScoreManager::AScoreManager()
-	: CurrentScore(0), ComboCount(0), Character(nullptr) // Initialize members
+	: CurrentScore(0), ComboCount(0)
 {
 	PrimaryActorTick.bCanEverTick = false;
 }
+
 void AScoreManager::AddScore(int32 Points)
 {
 	float Multiplier = 1.0f + (FMath::LogX(2.0f, ComboCount + 1) * 0.5f);
@@ -22,11 +24,13 @@ void AScoreManager::AddScore(int32 Points)
 		HighScore = SaveManager->GetBestScore(SaveManager->CurrentSave->LastSong.Get());
 	}
 
-	// Update HUD
-	Character = Cast<ASpaceshipCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
-	if (Character && Character->GetHUDWidget())
+	// Update HUD through GameMode
+	if (ASpaceshipGameMode* GameMode = Cast<ASpaceshipGameMode>(GetWorld()->GetAuthGameMode()))
 	{
-		Character->GetHUDWidget()->UpdateScore(CurrentScore, HighScore);
+		if (UWBP_HUD_Base* HUD = GameMode->GetGameHUD())
+		{
+			HUD->UpdateScore(CurrentScore, HighScore);
+		}
 	}
 }
 
@@ -34,18 +38,26 @@ void AScoreManager::IncrementCombo()
 {
 	ComboCount++;
     
-	if (Character && Character->GetHUDWidget())
+	// Update HUD through GameMode
+	if (ASpaceshipGameMode* GameMode = Cast<ASpaceshipGameMode>(GetWorld()->GetAuthGameMode()))
 	{
-		Character->GetHUDWidget()->UpdateCombo(ComboCount);
-		Character->GetHUDWidget()->PlayComboFeedback_Implementation();
+		if (UWBP_HUD_Base* HUD = GameMode->GetGameHUD())
+		{
+			HUD->UpdateCombo(ComboCount);
+			HUD->PlayComboFeedback_Implementation();
+		}
 	}
 }
 
 void AScoreManager::BreakCombo()
 {
 	ComboCount = 0;
-	if (Character && Character->GetHUDWidget())
+	// Update HUD through GameMode
+	if (ASpaceshipGameMode* GameMode = Cast<ASpaceshipGameMode>(GetWorld()->GetAuthGameMode()))
 	{
-		Character->GetHUDWidget()->UpdateCombo(ComboCount);
+		if (UWBP_HUD_Base* HUD = GameMode->GetGameHUD())
+		{
+			HUD->UpdateCombo(ComboCount);
+		}
 	}
 }

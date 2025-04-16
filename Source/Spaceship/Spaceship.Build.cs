@@ -10,7 +10,7 @@ public class Spaceship : ModuleRules
 	
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "AudioSynesthesia", "UMG" });
 
-		PrivateDependencyModuleNames.AddRange(new string[] { "Niagara", "EnhancedInput", "EnhancedInput" });
+		PrivateDependencyModuleNames.AddRange(new string[] { "Niagara", "EnhancedInput", "EnhancedInput", "LevelSequence", "MovieScene", "MovieSceneTracks", "MovieSceneCapture" });
 
 		// Uncomment if you are using Slate UI
 		// PrivateDependencyModuleNames.AddRange(new string[] { "Slate", "SlateCore" });
