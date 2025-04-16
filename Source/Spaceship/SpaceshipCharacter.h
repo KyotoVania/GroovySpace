@@ -37,8 +37,11 @@ public:
     virtual void Tick(float DeltaTime) override;
     virtual void SetupPlayerInputComponent(UInputComponent* PlayerInputComponent) override;
     virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+	void StartInvulnerability();
+	void EndInvulnerability();
+	void ToggleVisibility();
 
-    // --- Camera Components ---
+	// --- Camera Components ---
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Camera", meta = (AllowPrivateAccess = "true"))
     USpringArmComponent* SpringArmComp;
 
@@ -170,10 +173,7 @@ public:
 
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "VFX")
 	UNiagaraSystem* ThrusterEffect;
-	UFUNCTION(BlueprintCallable)
-	void CreateHUDWidget();
-	UFUNCTION(BlueprintCallable)
-	UWBP_HUD_Base* GetHUDWidget() const { return HUDWidget; }
+
 	UPROPERTY(EditDefaultsOnly, Category = "UI")
 	TSubclassOf<UWBP_HUD_Base> HUDWidgetClass;
 
@@ -202,7 +202,17 @@ protected:
 	float CurrentHealth;
 	UPROPERTY()
 	UWBP_HUD_Base* HUDWidget;
-	
+	UPROPERTY(EditDefaultsOnly, Category = "Combat|Invulnerability")
+	float InvulnerabilityDuration = 1.5f;
+
+	UPROPERTY(EditDefaultsOnly, Category = "Combat|Invulnerability")
+	float BlinkRate = 0.2f; // How fast to blink while invulnerable
+
+	UPROPERTY()
+	bool bIsInvulnerable = false;
+
+	FTimerHandle InvulnerabilityTimerHandle;
+	FTimerHandle BlinkTimerHandle;
 	FTimerHandle HealthRegenTimerHandle;
 	FTimerHandle HealthRegenDelayHandle;
 	void StartHealthRegeneration();

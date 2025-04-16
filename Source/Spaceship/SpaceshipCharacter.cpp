@@ -415,37 +415,37 @@ void ASpaceshipCharacter::ToggleSpaceshipMode()
         // SpringArmComp->bEnableCameraLag = bIsInSpaceship && bEnableCameraLag;
     }
 }
-
 float ASpaceshipCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, 
                                      AController* EventInstigator, AActor* DamageCauser)
 {
-    // Vérification des couleurs (code existant)
+    if (bIsInvulnerable)
+    {
+        return 0.0f;
+    }
+
     ASoundSphere* Projectile = Cast<ASoundSphere>(DamageCauser);
     if (Projectile && Projectile->GetColor() == bIsWhiteMode)
     {
         return 0.0f;
     }
 
-    // Appliquer les dégâts
-    float ActualDamage = DamagePerHit;  // Utiliser une valeur fixe
+    float ActualDamage = DamagePerHit;
     CurrentHealth = FMath::Max(0.0f, CurrentHealth - ActualDamage);
 
-    // Arrêter la régénération et relancer le délai
-    GetWorld()->GetTimerManager().SetTimer(
-        HealthRegenDelayHandle,
-        this,
-        &ASpaceshipCharacter::StartHealthRegeneration,
-        HealthRegenDelay,
-        false
-    );
-
-    if (UWBP_HUD_Base* HUD = GetHUDSafely())
-    {
-        HUD->UpdateHealth(CurrentHealth / MaxHealth);
-    }
-    
     if (ActualDamage > 0.0f)
     {
+        // Stop any current regeneration
+        StopHealthRegeneration();
+        
+        // Start the delay timer for new regeneration
+        GetWorld()->GetTimerManager().SetTimer(
+            HealthRegenDelayHandle,
+            this,
+            &ASpaceshipCharacter::StartHealthRegeneration,
+            HealthRegenDelay,
+            false
+        );
+
         HandleHit(ActualDamage, DamageEvent, DamageCauser);
         if (ASpaceshipGameMode* GameMode = GetSpaceshipGameMode())
         {
@@ -454,10 +454,58 @@ float ASpaceshipCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Da
                 ScoreManager->BreakCombo();
             }
         }
+        
+        StartInvulnerability();
+
+        if (UWBP_HUD_Base* HUD = GetHUDSafely())
+        {
+            HUD->UpdateHealth(CurrentHealth / MaxHealth);
+        }
     }
+    
     return ActualDamage;
 }
+void ASpaceshipCharacter::StartInvulnerability()
+{
+    bIsInvulnerable = true;
 
+    // Start blinking effect
+    GetWorldTimerManager().SetTimer(
+        BlinkTimerHandle,
+        this,
+        &ASpaceshipCharacter::ToggleVisibility,
+        BlinkRate,
+        true
+    );
+
+    // Set timer to end invulnerability
+    GetWorldTimerManager().SetTimer(
+        InvulnerabilityTimerHandle,
+        this,
+        &ASpaceshipCharacter::EndInvulnerability,
+        InvulnerabilityDuration,
+        false
+    );
+}
+
+void ASpaceshipCharacter::EndInvulnerability()
+{
+    bIsInvulnerable = false;
+    
+    // Stop blinking
+    GetWorldTimerManager().ClearTimer(BlinkTimerHandle);
+    
+    // Ensure visibility is restored
+    GetMesh()->SetVisibility(true);
+}
+
+void ASpaceshipCharacter::ToggleVisibility()
+{
+    if (USkeletalMeshComponent* MeshTemp = GetMesh())
+    {
+        MeshTemp->SetVisibility(!MeshTemp->IsVisible());
+    }
+}
 void ASpaceshipCharacter::HandleHit(float DamageAmount, FDamageEvent const& DamageEvent, AActor* DamageCauser)
 {
     APlayerController* PC = Cast<APlayerController>(GetController());
@@ -775,28 +823,9 @@ void ASpaceshipCharacter::RegenerateHealth()
     float HealthToAdd = (HealthRegenRate * 0.1f);
     CurrentHealth = FMath::Min(MaxHealth, CurrentHealth + HealthToAdd);
 
-    if (APlayerController* PC = Cast<APlayerController>(GetController()))
+    // Update the HUD with the new health value
+    if (UWBP_HUD_Base* HUD = GetHUDSafely())
     {
-        if (UWBP_HUD_Base* HUD = Cast<UWBP_HUD_Base>(PC->GetHUD()))
-        {
-            HUD->UpdateHealth(CurrentHealth / MaxHealth);
-        }
-    }
-}
-
-void ASpaceshipCharacter::CreateHUDWidget()
-{
-    if (HUDWidgetClass)
-    {
-        APlayerController* PC = Cast<APlayerController>(GetController());
-        if (PC)
-        {
-            HUDWidget = CreateWidget<UWBP_HUD_Base>(PC, HUDWidgetClass);
-            if (HUDWidget)
-            {
-                HUDWidget->AddToViewport();
-                HUDWidget->UpdateHealth(CurrentHealth / MaxHealth);
-            }
-        }
+        HUD->UpdateHealth(CurrentHealth / MaxHealth);
     }
 }
