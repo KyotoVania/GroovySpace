@@ -104,34 +104,12 @@ void AVisualizerActor::InitializeAudioAnalysis()
 		return;
 	}
 
-	auto* QNRT = VisualizerSettings->ConstantQNRT;
-    
-	// Ensure settings exist
-	if (!QNRT->Settings)
-	{
-		QNRT->Settings = NewObject<UConstantQNRTSettings>(QNRT);
-		if (!QNRT->Settings)
-		{
-			UE_LOG(LogTemp, Error, TEXT("Failed to create ConstantQNRT Settings"));
-			return;
-		}
-	}
-
-	// Configure default settings if needed
-	if (QNRT->Settings->NumBands <= 0)
-	{
-		QNRT->Settings->NumBands = 32;  // Default number of frequency bands
-		QNRT->Settings->StartingFrequency = 20.0f;  // Low audible frequency
-	}
-
 	// Initialize cooldown timers
-	BandCooldownTimers.Init(0.0f, QNRT->Settings->NumBands);
+	BandCooldownTimers.Init(0.0f, VisualizerSettings->ConstantQNRT->Settings->NumBands);
 
 	// Begin calculation of thresholds if sound is set
-	if (QNRT->Sound)
+	if (CurrentSoundWave)
 	{
-		CurrentSoundWave = QNRT->Sound;
-		
 		BeginCalculTest();
 	}
 }
@@ -581,7 +559,7 @@ void AVisualizerActor::UpdateVisualizerAtTime( const float InSeconds)
 
 	if (InSeconds >= MusicDuration)
 	{
-		HandleLevelComplete();
+		HandleLevelComplete(true);
 		return;
 	}
 	
@@ -788,7 +766,7 @@ float AVisualizerActor::CalculateGlobalAmplitude(const TArray<float>& BandValues
 	return Sum / BandValues.Num(); 
 }
 
-void AVisualizerActor::HandleLevelComplete()
+void AVisualizerActor::HandleLevelComplete(bool bWin)
 {
 	// Protection contre les appels multiples
 	if (bLevelCompleted)
@@ -832,7 +810,7 @@ void AVisualizerActor::HandleLevelComplete()
 			FString SongName = CurrentSoundWave ? CurrentSoundWave->GetName() : TEXT("Unknown");
 			int32 Score = ScoreManager ? ScoreManager->GetScore() : 0;
             
-			GameOverWidget->InitializeGameOver(true, SongName, Score);
+			GameOverWidget->InitializeGameOver(bWin, SongName, Score);
 			GameOverWidget->AddToViewport();
 		}
 	}
@@ -845,7 +823,7 @@ void AVisualizerActor::OnDebugEndLevelTriggered(const FInputActionValue& Value)
 	if (!bLevelCompleted)
 	{
 		UE_LOG(LogTemp, Log, TEXT("Debug: Triggering level end"));
-		HandleLevelComplete();
+		HandleLevelComplete(true);
 	}
 #endif
 }

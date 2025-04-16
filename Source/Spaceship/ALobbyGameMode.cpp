@@ -7,13 +7,8 @@
 ALobbyGameMode::ALobbyGameMode()
 {
 	// Set default class for the lobby character (BP_Player)
-	static ConstructorHelpers::FClassFinder<APawn> PlayerPawnBPClass(TEXT("/Game/ThirdPerson/Blueprints/BP_ThirdPersonCharacter"));
-	if (PlayerPawnBPClass.Class != nullptr)
-	{
-		DefaultPawnClass = PlayerPawnBPClass.Class;
-	}
 
-	GameplayLevelName = TEXT("Level1");
+	GameplayLevelName = TEXT("ThirdPersonMap");
 }
 
 void ALobbyGameMode::BeginPlay()

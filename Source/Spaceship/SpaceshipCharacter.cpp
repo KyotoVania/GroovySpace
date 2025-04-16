@@ -9,6 +9,7 @@
 #include "EnhancedInputSubsystems.h"
 // Required Includes for new features
 #include "ASpaceshipGameMode.h"
+#include "AVisualizerActor.h"
 #include "NiagaraComponentPoolMethodEnum.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -22,6 +23,7 @@
 #include "UWBP_HUD_Base.h"
 #include "AI/NavigationSystemBase.h"
 #include "GameFramework/ProjectileMovementComponent.h"
+#include "Widget/UWBP_GameOver.h"
 
 
 ASpaceshipCharacter::ASpaceshipCharacter()
@@ -461,6 +463,10 @@ float ASpaceshipCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Da
         {
             HUD->UpdateHealth(CurrentHealth / MaxHealth);
         }
+        if (CurrentHealth <= 0.0f)
+        {
+            HandleGameOver();
+        }
     }
     
     return ActualDamage;
@@ -827,5 +833,21 @@ void ASpaceshipCharacter::RegenerateHealth()
     if (UWBP_HUD_Base* HUD = GetHUDSafely())
     {
         HUD->UpdateHealth(CurrentHealth / MaxHealth);
+    }
+}
+
+
+void ASpaceshipCharacter::HandleGameOver()
+{
+    // Find the AVisualizerActor in the world
+    AVisualizerActor* VisualizerActor = Cast<AVisualizerActor>(UGameplayStatics::GetActorOfClass(GetWorld(), AVisualizerActor::StaticClass()));
+    if (VisualizerActor)
+    {
+        // Call HandleLevelComplete on the VisualizerActor
+        VisualizerActor->HandleLevelComplete(false); // Pass false for failure
+    }
+    else
+    {
+        UE_LOG(LogTemp, Warning, TEXT("AVisualizerActor not found in the world."));
     }
 }

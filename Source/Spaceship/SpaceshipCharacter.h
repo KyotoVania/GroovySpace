@@ -218,7 +218,8 @@ protected:
 	void StartHealthRegeneration();
 	void StopHealthRegeneration();
 	void RegenerateHealth();
-	
+	void HandleGameOver();
+
 	// Handle pour le timer du cooldown
     FTimerHandle ColorToggleCooldownTimerHandle;
     FVector2D CurrentMovementInput; // Stocker l'input actuel

@@ -143,7 +143,7 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
 	float CalculateGlobalAmplitude(const TArray<float>& BandValues);
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
-	void HandleLevelComplete();
+	void HandleLevelComplete(bool bWin);
 
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
 	void SpawnBoss();
