@@ -80,37 +80,52 @@ void ASpaceshipGameMode::HandleStartingNewPlayer_Implementation(APlayerControlle
         }
     }
 }
-
 void ASpaceshipGameMode::InitializeHUDForPlayer(APlayerController* PlayerController)
 {
-    if (!PlayerController || !GameHUDWidgetClass) 
+    // Vérifions d'abord si un HUD existe déjà pour éviter la double initialisation
+    if (ActiveHUD)
     {
-        UE_LOG(LogTemp, Warning, TEXT("Impossible d'initialiser le HUD: PlayerController ou GameHUDWidgetClass manquant"));
+        UE_LOG(LogTemp, Warning, TEXT("HUD already initialized!"));
         return;
     }
 
-    // Create HUD widget
-    ActiveHUD = CreateWidget<UWBP_HUD_Base>(PlayerController, GameHUDWidgetClass);
-    if (ActiveHUD)
+    if (!PlayerController || !GameHUDWidgetClass)
     {
-        ActiveHUD->AddToViewport();
-
-        // Initialize with default values
-        if (ASpaceshipCharacter* SpaceshipChar = GetSpaceshipCharacter())
-        {
-            ActiveHUD->UpdateHealth(1.0f); // Full health initially
-        }
-
-        // Initialize score display
-        if (ScoreManager)
-        {
-            ActiveHUD->UpdateScore(0, 0); // Initial scores
-            ActiveHUD->UpdateCombo(0);    // Initial combo
-        }
+        UE_LOG(LogTemp, Error, TEXT("InitializeHUDForPlayer: Missing PlayerController or HUDClass"));
+        return;
     }
-    else
+
+    // Création du HUD
+    ActiveHUD = CreateWidget<UWBP_HUD_Base>(PlayerController, GameHUDWidgetClass);
+    if (!ActiveHUD)
     {
-        UE_LOG(LogTemp, Error, TEXT("Échec de la création du widget HUD"));
+        UE_LOG(LogTemp, Error, TEXT("Failed to create HUD Widget"));
+        return;
+    }
+
+    // Initialisation unique
+    ActiveHUD->AddToViewport();
+    
+    // State initial 
+    if (ScoreManager)
+    {
+        ActiveHUD->UpdateScore(0, 0); // Score initial
+        ActiveHUD->UpdateCombo(0);    // Combo initial
+    }
+
+    // Health initial si nécessaire
+    if (ASpaceshipCharacter* Character = GetSpaceshipCharacter())
+    {
+        ActiveHUD->UpdateHealth(1.0f); // Full health
+    }
+
+    // UpdateSongName si disponible
+    if (USpaceshipSaveManager* SaveManager = USpaceshipSaveManager::GetSaveManager(this))
+    {
+        if (SaveManager->CurrentSave && SaveManager->CurrentSave->LastSong.Get())
+        {
+            ActiveHUD->UpdateSongName(SaveManager->CurrentSave->LastSong->GetName());
+        }
     }
 }
 

@@ -20,6 +20,7 @@
 #include "Materials/MaterialInstanceDynamic.h"
 #include "TimerManager.h"
 #include "UWBP_HUD_Base.h"
+#include "AI/NavigationSystemBase.h"
 #include "GameFramework/ProjectileMovementComponent.h"
 
 
@@ -430,7 +431,6 @@ float ASpaceshipCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Da
     CurrentHealth = FMath::Max(0.0f, CurrentHealth - ActualDamage);
 
     // Arrêter la régénération et relancer le délai
-    StopHealthRegeneration();
     GetWorld()->GetTimerManager().SetTimer(
         HealthRegenDelayHandle,
         this,
@@ -447,8 +447,14 @@ float ASpaceshipCharacter::TakeDamage(float DamageAmount, FDamageEvent const& Da
     if (ActualDamage > 0.0f)
     {
         HandleHit(ActualDamage, DamageEvent, DamageCauser);
+        if (ASpaceshipGameMode* GameMode = GetSpaceshipGameMode())
+        {
+            if (AScoreManager* ScoreManager = GameMode->GetScoreManager())
+            {
+                ScoreManager->BreakCombo();
+            }
+        }
     }
-
     return ActualDamage;
 }
 

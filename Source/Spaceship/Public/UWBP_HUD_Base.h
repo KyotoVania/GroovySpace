@@ -24,11 +24,11 @@ public:
 	UTextBlock* HealthText;
 
 	// New score and combo widgets
-	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
-	UTextBlock* CurrentScoreText;
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* CurrentScoreText = nullptr;
 
-	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
-	UTextBlock* HighScoreText;
+	UPROPERTY(meta = (BindWidget))
+	UTextBlock* HighScoreText = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, meta = (BindWidget))
 	UTextBlock* ComboText;
