@@ -3,6 +3,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "AScoreManager.h"
 #include "AVisualizerActor.h"
+#include "Spaceship/ASpaceshipGameMode.h"
 #include "Spaceship/NiagaraProjectile.h"
 
 AEnemyBoss::AEnemyBoss()
@@ -24,26 +25,24 @@ void AEnemyBoss::BeginPlay()
 	Super::BeginPlay();
 	if (Hitbox)
 	{
-		Hitbox->OnComponentHit.AddDynamic(this, &AEnemyBoss::OnBossHit);
+        Hitbox->OnComponentHit.AddDynamic(this, &AEnemyBoss::OnBossHit);
 	}
 	else
 	{
 		UE_LOG(LogTemp, Error, TEXT("AEnemyBoss: Hitbox is null in BeginPlay!"));
 	}
-
-	// Récupérer le score manager
-	ScoreManager = Cast<AScoreManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AScoreManager::StaticClass()));
-	//debug log de ce que contient ScoreManager
-	if (ScoreManager)
-	{
-		UE_LOG(LogTemp, Log, TEXT("ScoreManager found!"));
-	}
-	else
-	{
-		UE_LOG(LogTemp, Warning, TEXT("ScoreManager not found!"));
-	}
+	
 	// Vérifie que la santé est correcte
 	CurrentHealth = FMath::Clamp(CurrentHealth, 0.0f, MaxHealth);
+}
+ASpaceshipGameMode* AEnemyBoss::GetSpaceshipGameMode() const
+{
+	if (UWorld* World = GetWorld())
+	{
+		return Cast<ASpaceshipGameMode>(World->GetAuthGameMode());
+	}
+	UE_LOG(LogTemp, Warning, TEXT("%s: Failed to get GameMode!"), *GetName());
+	return nullptr;
 }
 
 void AEnemyBoss::OnBossHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
@@ -70,39 +69,37 @@ void AEnemyBoss::OnBossHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPr
 
 
 // Standard TakeDamage override - This is called INTERNALLY by ApplyDamage
-float AEnemyBoss::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, class AController* EventInstigator, AActor* DamageCauser)
+float AEnemyBoss::TakeDamage(float DamageAmount, struct FDamageEvent const& DamageEvent, 
+							class AController* EventInstigator, AActor* DamageCauser)
 {
-    // Call the parent class implementation first (important!)
-    const float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+	const float ActualDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
 
-    if (ActualDamage > 0.0f)
-    {
-        CurrentHealth -= ActualDamage;
-        CurrentHealth = FMath::Clamp(CurrentHealth, 0.0f, MaxHealth);
-        UE_LOG(LogTemp, Log, TEXT("AEnemyBoss took %.1f damage, Health: %.1f"), ActualDamage, CurrentHealth);
+	if (ActualDamage > 0.0f)
+	{
+		CurrentHealth = FMath::Clamp(CurrentHealth - ActualDamage, 0.0f, MaxHealth);
 
+		if (HitSound && CurrentHealth > 0.0f)
+		{
+			UGameplayStatics::PlaySoundAtLocation(GetWorld(), HitSound, GetActorLocation());
+		}
 
-        // Play hit sound if not destroyed yet
-        if (HitSound && CurrentHealth > 0.0f)
-        {
-           UGameplayStatics::PlaySoundAtLocation(GetWorld(), HitSound, GetActorLocation());
-        }
+		// Use GameMode to access ScoreManager
+		if (ASpaceshipGameMode* GameMode = GetSpaceshipGameMode())
+		{
+			if (AScoreManager* ScoreManager = GameMode->GetScoreManager())
+			{
+				ScoreManager->AddScore(10);
+				ScoreManager->IncrementCombo();
+			}
+		}
 
-        // Increment score/combo via ScoreManager (TODO logic still here)
-        if (ScoreManager)
-        {
-           ScoreManager->AddScore(10); // TODO: Use appropriate score value
-           ScoreManager->IncrementCombo();
-        }
+		if (IsDestroyed())
+		{
+			HandleDeath();
+		}
+	}
 
-        // Check if destroyed AFTER applying damage
-        if (IsDestroyed())
-        {
-            HandleDeath();
-        }
-    }
-
-    return ActualDamage; // Return the amount of damage actually applied
+	return ActualDamage;
 }
 
 // NEW Function to handle death logic cleanly
@@ -115,8 +112,10 @@ void AEnemyBoss::HandleDeath()
     {
         UGameplayStatics::PlaySoundAtLocation(GetWorld(), DeathSound, GetActorLocation());
     }
-
+	
     // Add final score bonus
+	ASpaceshipGameMode* GameMode = GetSpaceshipGameMode();
+	AScoreManager* ScoreManager = GameMode ? GameMode->GetScoreManager() : nullptr;
     if(ScoreManager)
     {
         ScoreManager->AddScore(100); // TODO: Use appropriate score value

@@ -34,22 +34,50 @@ void ASpaceshipGameMode::BeginPlay()
     // Initialize score manager
     InitializeScoreManager();
 }
-
 void ASpaceshipGameMode::InitializeScoreManager()
 {
-    if (!ScoreManagerClass) return;
+    if (!ScoreManagerClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("ScoreManagerClass not set in GameMode Blueprint!"));
+        return;
+    }
 
-    // Spawn score manager
+    // Create score manager
     FActorSpawnParameters SpawnParams;
     SpawnParams.Owner = this;
-    ScoreManager = GetWorld()->SpawnActor<AScoreManager>(ScoreManagerClass, FVector::ZeroVector, FRotator::ZeroRotator, SpawnParams);
+    ScoreManager = GetWorld()->SpawnActor<AScoreManager>(
+        ScoreManagerClass, 
+        FVector::ZeroVector, 
+        FRotator::ZeroRotator, 
+        SpawnParams
+    );
 
     if (!ScoreManager)
     {
         UE_LOG(LogTemp, Error, TEXT("Failed to spawn ScoreManager!"));
+        return;
     }
-}
 
+    UE_LOG(LogTemp, Log, TEXT("ScoreManager initialized successfully"));
+}
+bool ASpaceshipGameMode::ValidateScoreManager() const
+{
+    if (!ScoreManager)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("ScoreManager is null! This may cause scoring issues."));
+        return false;
+    }
+    return true;
+}
+AScoreManager* ASpaceshipGameMode::GetScoreManager() const
+{
+    // Add validation
+    if (!ValidateScoreManager())
+    {
+        UE_LOG(LogTemp, Error, TEXT("Attempting to access invalid ScoreManager!"));
+    }
+    return ScoreManager;
+}
 void ASpaceshipGameMode::PostLogin(APlayerController* NewPlayer)
 {
     Super::PostLogin(NewPlayer);
@@ -158,3 +186,4 @@ bool ASpaceshipGameMode::ValidateHUDOperation() const
 
     return true;
 }
+

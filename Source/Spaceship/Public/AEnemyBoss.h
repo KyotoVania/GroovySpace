@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include "AScoreManager.h"
+#include "Spaceship/ASpaceshipGameMode.h"
 #include "AEnemyBoss.generated.h"
 
 UCLASS()
@@ -43,10 +44,9 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	ASpaceshipGameMode* GetSpaceshipGameMode() const;
 	void OnBossHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp,
 	               FVector NormalImpulse,
 	               const FHitResult& Hit);
 
-	UPROPERTY()
-	class AScoreManager* ScoreManager;
 };

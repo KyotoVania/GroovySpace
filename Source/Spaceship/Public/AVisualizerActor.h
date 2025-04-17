@@ -142,6 +142,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
 	float CalculateGlobalAmplitude(const TArray<float>& BandValues);
+	ASpaceshipGameMode* GetSpaceshipGameMode() const;
 	UFUNCTION(BlueprintCallable, Category = "Visualizer")
 	void HandleLevelComplete(bool bWin);
 

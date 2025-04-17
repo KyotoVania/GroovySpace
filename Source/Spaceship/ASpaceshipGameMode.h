@@ -28,8 +28,7 @@ public:
 
 	// Get the score manager
 	UFUNCTION(BlueprintCallable, Category = "Score")
-	AScoreManager* GetScoreManager() const { return ScoreManager; }
-
+	AScoreManager* GetScoreManager() const;
 protected:
 	virtual void BeginPlay() override;
 
@@ -56,6 +55,7 @@ protected:
 
 	// Initialize the score manager
 	void InitializeScoreManager();
+	bool ValidateScoreManager() const;
 
 private:
 	// Safety check before HUD operations
