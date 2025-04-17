@@ -13,7 +13,7 @@ class SPACESHIP_API UAnalysisDataManager : public UPrimaryDataAsset
 
 public:
 	// Array of pre-analyzed ConstantQNRT instances
-	UPROPERTY(EditAnywhere, Instanced, BlueprintReadOnly, Category = "Analysis Data")
+	UPROPERTY(EditAnywhere, Instanced, BlueprintReadOnly, Category = "Analysis Data", meta = (PinHiddenByDefault, AlwaysAsPin))
 	TArray<TObjectPtr<UConstantQNRT>> PreAnalyzedData;
 
 	// Helper function to find analysis data for a given SoundWave

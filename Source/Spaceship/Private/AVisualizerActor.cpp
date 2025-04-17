@@ -813,6 +813,14 @@ void AVisualizerActor::HandleLevelComplete(bool bWin)
 			GameOverWidget->InitializeGameOver(bWin, SongName, Score);
 			GameOverWidget->AddToViewport();
 		}
+		//disable the input and the collision to make invisible the player
+		ASpaceshipCharacter* PlayerPawn = Cast<ASpaceshipCharacter>(PC->GetPawn());
+		if (PlayerPawn)
+		{
+			PlayerPawn->DisableInput(PC);
+			PlayerPawn->SetActorHiddenInGame(true);
+			PlayerPawn->SetActorEnableCollision(false);
+		}
 	}
 }
 
