@@ -768,54 +768,52 @@ float AVisualizerActor::CalculateGlobalAmplitude(const TArray<float>& BandValues
 
 void AVisualizerActor::HandleLevelComplete(bool bWin)
 {
-	// Protection contre les appels multiples
-	if (bLevelCompleted)
-	{
-		return;
-	}
+	if (bLevelCompleted) return;
 	bLevelCompleted = true;
 
-	UE_LOG(LogTemp, Log, TEXT("Level complete!"));    
+	if (AudioComponent) AudioComponent->Stop();
 
-	// Pause la musique
-	if (AudioComponent)
-	{
-		AudioComponent->Stop();
-	}
+	// Add debug logging
 
-	// Sauvegarder le score
-	AScoreManager* ScoreManager = nullptr;
-	if (SaveManager && CurrentSoundWave)
+	AScoreManager* ScoreManager = Cast<AScoreManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AScoreManager::StaticClass()));
+	if (ScoreManager)
 	{
-		ScoreManager = Cast<AScoreManager>(UGameplayStatics::GetActorOfClass(GetWorld(), AScoreManager::StaticClass()));
-		if (ScoreManager)
+		int32 FinalScore = ScoreManager->GetScore();
+		UE_LOG(LogTemp, Warning, TEXT("HandleLevelComplete - Final Score: %d"), FinalScore);
+        
+		if (SaveManager && CurrentSoundWave)
 		{
-			int32 FinalScore = ScoreManager->GetScore();
 			SaveManager->AddHighScore(CurrentSoundWave, FinalScore);
 		}
 	}
+	else
+	{
+		UE_LOG(LogTemp, Error, TEXT("HandleLevelComplete - ScoreManager not found!"));
+	}
 
-	// Créer et afficher le widget de fin
 	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
 	if (PC)
 	{
-		// Change input mode to UI
 		FInputModeUIOnly InputMode;
 		PC->SetInputMode(InputMode);
 		PC->SetShowMouseCursor(true);
 
-		UWBP_GameOver* GameOverWidget = CreateWidget<UWBP_GameOver>(PC, GameOverWidgetClass);
-		if (GameOverWidget)
+		if (GameOverWidgetClass)
 		{
-			FString SongName = CurrentSoundWave ? CurrentSoundWave->GetName() : TEXT("Unknown");
-			int32 Score = ScoreManager ? ScoreManager->GetScore() : 0;
-            
-			GameOverWidget->InitializeGameOver(bWin, SongName, Score);
-			GameOverWidget->AddToViewport();
+			UWBP_GameOver* GameOverWidget = CreateWidget<UWBP_GameOver>(PC, GameOverWidgetClass);
+			if (GameOverWidget)
+			{
+				// Get the score one more time to ensure consistency
+				int32 DisplayScore = ScoreManager ? ScoreManager->GetScore() : 0;
+				UE_LOG(LogTemp, Warning, TEXT("Creating GameOver widget with score: %d"), DisplayScore);
+                
+				FString SongName = CurrentSoundWave ? CurrentSoundWave->GetName() : TEXT("Unknown");
+				GameOverWidget->InitializeGameOver(bWin, SongName, DisplayScore);
+				GameOverWidget->AddToViewport();
+			}
 		}
-		//disable the input and the collision to make invisible the player
-		ASpaceshipCharacter* PlayerPawn = Cast<ASpaceshipCharacter>(PC->GetPawn());
-		if (PlayerPawn)
+
+		if (ASpaceshipCharacter* PlayerPawn = Cast<ASpaceshipCharacter>(PC->GetPawn()))
 		{
 			PlayerPawn->DisableInput(PC);
 			PlayerPawn->SetActorHiddenInGame(true);
