@@ -782,54 +782,50 @@ void AVisualizerActor::HandleLevelComplete(bool bWin)
 
 	if (AudioComponent) AudioComponent->Stop();
 
-	// Add debug logging
-
 	int32 FinalScore = 0;
 	if (ASpaceshipGameMode* GameMode = GetSpaceshipGameMode())
 	{
 		if (AScoreManager* ScoreManager = GameMode->GetScoreManager())
 		{
 			FinalScore = ScoreManager->GetScore();
-			UE_LOG(LogTemp, Log, TEXT("HandleLevelComplete - Final Score: %d"), FinalScore);
-			APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
-			if (PC)
+            
+			// Sauvegarder le score dans les high scores
+			SaveManager = USpaceshipSaveManager::GetSaveManager(GetWorld());
+			if (SaveManager)
 			{
-				FInputModeUIOnly InputMode;
-				PC->SetInputMode(InputMode);
-				PC->SetShowMouseCursor(true);
-
-				if (GameOverWidgetClass)
+				// Vérifier si le score est meilleur que le précédent
+				if (CurrentSoundWave)
 				{
-					UWBP_GameOver* GameOverWidget = CreateWidget<UWBP_GameOver>(PC, GameOverWidgetClass);
-					if (GameOverWidget)
-					{
-						// Get the score one more time to ensure consistency
-					
-						UE_LOG(LogTemp, Warning, TEXT("Creating GameOver widget with score: %d"), FinalScore);
-		                
-						FString SongName = CurrentSoundWave ? CurrentSoundWave->GetName() : TEXT("Unknown");
-						GameOverWidget->InitializeGameOver(bWin, SongName, FinalScore);
-						GameOverWidget->AddToViewport();
-					}
-				}
-
-				if (ASpaceshipCharacter* PlayerPawn = Cast<ASpaceshipCharacter>(PC->GetPawn()))
-				{
-					PlayerPawn->DisableInput(PC);
-					PlayerPawn->SetActorHiddenInGame(true);
-					PlayerPawn->SetActorEnableCollision(false);
+					// Ajouter le score aux high scores
+					SaveManager->AddHighScore(CurrentSoundWave, FinalScore);
 				}
 			}
 		}
-		else
+	}
+
+	// Créer et initialiser l'écran de game over
+	APlayerController* PC = UGameplayStatics::GetPlayerController(GetWorld(), 0);
+	if (PC && GameOverWidgetClass)
+	{
+		UWBP_GameOver* GameOverWidget = CreateWidget<UWBP_GameOver>(PC, GameOverWidgetClass);
+		if (GameOverWidget)
 		{
-			UE_LOG(LogTemp, Error, TEXT("HandleLevelComplete - Failed to get ScoreManager from GameMode"));
+			FString SongName = CurrentSoundWave ? CurrentSoundWave->GetName() : TEXT("Unknown");
+			GameOverWidget->InitializeGameOver(bWin, SongName, FinalScore);
+			GameOverWidget->AddToViewport();
+			FInputModeUIOnly InputMode;
+			PC->SetInputMode(InputMode);
+			PC->SetShowMouseCursor(true);
+			if (ASpaceshipCharacter* PlayerPawn = Cast<ASpaceshipCharacter>(PC->GetPawn()))
+			{
+				PlayerPawn->DisableInput(PC);
+				PlayerPawn->SetActorHiddenInGame(true);
+				PlayerPawn->SetActorEnableCollision(false);
+			}
+
 		}
 	}
-	else
-	{
-		UE_LOG(LogTemp, Error, TEXT("HandleLevelComplete - Failed to get GameMode"));
-	}
+	
 }
 
 void AVisualizerActor::OnDebugEndLevelTriggered(const FInputActionValue& Value)

@@ -54,60 +54,43 @@ void UWBP_GameOver::UpdateHighScoresDisplay(USoundWave* SoundWave, int32 Current
     if (!HighScoresScrollBox || !SoundWave) return;
 
     USpaceshipSaveManager* SaveManager = USpaceshipSaveManager::GetSaveManager(GetWorld());
-    if (!SaveManager) return;
+    if (!SaveManager || !SaveManager->CurrentSave) return;
 
-    // Vide le ScrollBox existant
+    // Vider le ScrollBox existant
     HighScoresScrollBox->ClearChildren();
 
-    // Récupère les high scores existants
-    const FSongScores* SongScores = SaveManager->CurrentSave->SongHighScores.SongScores.Find(SoundWave);
-    if (!SongScores) return;
+    // Obtenir le format complet des high scores
+    FString HighScores = SaveManager->GetFormattedHighScores(SoundWave);
+    
+    // Vérifier si c'est un nouveau high score
+    int32 BestScore = SaveManager->GetBestScore(SoundWave);
+    bool bIsNewHighScore = CurrentScore > BestScore;
 
-    // Vérifie si c'est un nouveau high score
-    bool bIsNewHighScore = false;
-    for (int32 i = 0; i < SongScores->TopScores.Num(); i++)
-    {
-        if (CurrentScore > SongScores->TopScores[i].Score)
-        {
-            bIsNewHighScore = true;
-            break;
-        }
-    }
-
-    // Met à jour le texte de nouveau high score si nécessaire
+    // Mettre à jour l'indicateur de nouveau high score
     if (NewHighScoreText)
     {
-        NewHighScoreText->SetVisibility(bIsNewHighScore ? ESlateVisibility::Visible : ESlateVisibility::Collapsed);
+        NewHighScoreText->SetVisibility(
+            bIsNewHighScore ? ESlateVisibility::Visible : ESlateVisibility::Collapsed
+        );
     }
 
-    // Crée une entrée pour chaque score
-    for (int32 i = 0; i < SongScores->TopScores.Num(); i++)
+    // Créer et ajouter chaque ligne de score
+    TArray<FString> ScoreLines;
+    HighScores.ParseIntoArrayLines(ScoreLines);
+    
+    for (const FString& ScoreLine : ScoreLines)
     {
-        const FScoreEntry& ScoreEntry = SongScores->TopScores[i];
+        // Utiliser un nom différent pour la variable locale
+        UTextBlock* ScoreLineText = NewObject<UTextBlock>(HighScoresScrollBox);
+        ScoreLineText->SetText(FText::FromString(ScoreLine));
         
-        ScoreText = NewObject<UTextBlock>(HighScoresScrollBox);
-        FString ScoreString = FString::Printf(TEXT("%d. %d pts (Diff: %d) - %s"),
-            i + 1,
-            ScoreEntry.Score,
-            ScoreEntry.Difficulty,
-            *ScoreEntry.DateAchieved);
-
-        // Applique un style spécial si c'est le score actuel
-        if (ScoreEntry.Score == CurrentScore)
+        // Mettre en évidence le score actuel
+        if (ScoreLine.Contains(FString::FromInt(CurrentScore)))
         {
-            ScoreString = FString::Printf(TEXT("> %s <"), *ScoreString);
+            ScoreLineText->SetColorAndOpacity(FSlateColor(FLinearColor(1.0f, 0.8f, 0.0f, 1.0f)));
         }
-
-        ScoreText->SetText(FText::FromString(ScoreString));
         
-        // Optionnel: Applique un style différent pour le score actuel
-        if (ScoreEntry.Score == CurrentScore)
-        {
-            FSlateColor HighlightColor = FSlateColor(FLinearColor(1.0f, 0.8f, 0.0f, 1.0f)); // Gold color
-            ScoreText->SetColorAndOpacity(HighlightColor);
-        }
-
-        HighScoresScrollBox->AddChild(ScoreText);
+        HighScoresScrollBox->AddChild(ScoreLineText);
     }
 }
 

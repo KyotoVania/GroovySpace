@@ -16,20 +16,23 @@ void AScoreManager::AddScore(int32 Points)
 	int32 ScoreToAdd = FMath::RoundToInt(Points * Multiplier);
 	CurrentScore += ScoreToAdd;
 
-	// Get save manager for high score
-	USpaceshipSaveManager* SaveManager = USpaceshipSaveManager::GetSaveManager(GetWorld());
-	int32 HighScore = 0;
-	if (SaveManager && SaveManager->CurrentSave && SaveManager->CurrentSave->LastSong.Get())
+	// Récupérer le SaveManager pour obtenir le high score actuel
+	if (USpaceshipSaveManager* SaveManager = USpaceshipSaveManager::GetSaveManager(GetWorld()))
 	{
-		HighScore = SaveManager->GetBestScore(SaveManager->CurrentSave->LastSong.Get());
-	}
-
-	// Update HUD through GameMode
-	if (ASpaceshipGameMode* GameMode = Cast<ASpaceshipGameMode>(GetWorld()->GetAuthGameMode()))
-	{
-		if (UWBP_HUD_Base* HUD = GameMode->GetGameHUD())
+		int32 HighScore = 0;
+		if (SaveManager->CurrentSave && SaveManager->CurrentSave->LastSong.Get())
 		{
-			HUD->UpdateScore(CurrentScore, HighScore);
+			HighScore = SaveManager->GetBestScore(SaveManager->CurrentSave->LastSong.Get());
+		}
+
+		// Mettre à jour le HUD via GameMode
+		if (ASpaceshipGameMode* GameMode = Cast<ASpaceshipGameMode>(GetWorld()->GetAuthGameMode()))
+		{
+			if (UWBP_HUD_Base* HUD = GameMode->GetGameHUD())
+			{
+				// Passer à la fois le score actuel et le high score
+				HUD->UpdateScore(CurrentScore, HighScore);
+			}
 		}
 	}
 }
